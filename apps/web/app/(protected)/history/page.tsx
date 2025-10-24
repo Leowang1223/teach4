@@ -1,0 +1,374 @@
+﻿'use client'
+
+import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
+import { Radar } from 'react-chartjs-2'
+import {
+  Chart as ChartJS,
+  RadialLinearScale,
+  PointElement,
+  LineElement,
+  Filler,
+  Tooltip,
+  Legend,
+} from 'chart.js'
+import { LessonReportDisplay, type LessonReport } from '../components/report'
+import Link from 'next/link'
+
+ChartJS.register(
+  RadialLinearScale,
+  PointElement,
+  LineElement,
+  Filler,
+  Tooltip,
+  Legend
+)
+
+interface LessonHistory {
+  sessionId: string
+  lessonId: string
+  lessonTitle: string
+  completedAt: string
+  totalScore: number
+  questionsCount: number
+  totalAttempts: number
+  radar: {
+    pronunciation: number
+    fluency: number
+    accuracy: number
+    comprehension: number
+    confidence: number
+  }
+  results: Array<{
+    stepId: number
+    question: string
+    score: number
+    attempts: number
+    passed: boolean
+    detailedScores?: {
+      pronunciation: number
+      fluency: number
+      accuracy: number
+      comprehension: number
+      confidence: number
+    }
+    suggestions?: {
+      pronunciation?: string
+      fluency?: string
+      accuracy?: string
+      comprehension?: string
+      confidence?: string
+    }
+    overallPractice?: string
+    feedback?: string
+    transcript?: string
+  }>
+}
+
+export default function HistoryPage() {
+  const router = useRouter()
+  const [history, setHistory] = useState<LessonHistory[]>([])
+  const [loading, setLoading] = useState(true)
+  const [selectedSession, setSelectedSession] = useState<LessonHistory | null>(null)
+
+  useEffect(() => {
+    try {
+      // 載入學習歷史
+      const savedHistory = localStorage.getItem('lessonHistory')
+      if (savedHistory) {
+        const parsed = JSON.parse(savedHistory)
+        setHistory(parsed.sort((a: LessonHistory, b: LessonHistory) => 
+          new Date(b.completedAt).getTime() - new Date(a.completedAt).getTime()
+        ))
+      }
+    } catch (err) {
+      console.error('Failed to load history:', err)
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  const clearHistory = () => {
+    if (confirm('Clear all learning history?')) {
+      localStorage.removeItem('lessonHistory')
+      setHistory([])
+      setSelectedSession(null)
+    }
+  }
+
+  const deleteSession = (sessionId: string) => {
+    if (confirm('Delete this record?')) {
+      const newHistory = history.filter(h => h.sessionId !== sessionId)
+      localStorage.setItem('lessonHistory', JSON.stringify(newHistory))
+      setHistory(newHistory)
+      if (selectedSession?.sessionId === sessionId) {
+        setSelectedSession(null)
+      }
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-blue-50 to-purple-50">
+        <div className="text-xl text-gray-700">Loading...</div>
+      </div>
+    )
+  }
+
+  // 詳細報表頁面
+  if (selectedSession) {
+    // 構建報表數據
+    const lessonReport: LessonReport = {
+      lessonId: selectedSession.lessonId,
+      lessonTitle: selectedSession.lessonTitle,
+      completedAt: selectedSession.completedAt,
+      totalScore: selectedSession.totalScore,
+      results: selectedSession.results.map(r => ({
+        stepId: r.stepId,
+        question: r.question,
+        totalScore: r.score,
+        score: r.score,
+        passed: r.passed,
+        detailedScores: r.detailedScores || {
+          pronunciation: 0,
+          fluency: 0,
+          accuracy: 0,
+          comprehension: 0,
+          confidence: 0
+        },
+        suggestions: r.suggestions,
+        overallPractice: r.overallPractice,
+        feedback: r.feedback,
+        transcript: r.transcript,
+        attempts: r.attempts
+      }))
+    }
+
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-purple-50 p-8">
+        <div className="max-w-5xl mx-auto bg-white rounded-2xl shadow-2xl p-8">
+          <button
+            onClick={() => setSelectedSession(null)}
+            className="mb-6 px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors"
+          >
+            ← Back to History
+          </button>
+
+          <div className="text-center mb-8">
+            <h1 className="text-3xl font-bold text-gray-800 mb-2">
+              📊 Course Completion Report
+            </h1>
+            <h2 className="text-xl text-gray-600">{selectedSession.lessonTitle}</h2>
+            <p className="text-sm text-gray-500 mt-2">
+              Completed: {new Date(selectedSession.completedAt).toLocaleString('en-US', {
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+              })}
+            </p>
+          </div>
+
+          {/* 總體評分和雷達圖 */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
+            {/* 左側：總分 */}
+            <div className="bg-gradient-to-r from-blue-500 to-purple-500 rounded-xl p-6 text-white flex flex-col justify-center">
+              <div className="text-center">
+                <p className="text-lg mb-2">Overall Average Score</p>
+                <p className="text-6xl font-bold">{selectedSession.totalScore}</p>
+                <p className="text-sm mt-2">
+                  {selectedSession.totalScore >= 90 ? 'Excellent!' : 
+                   selectedSession.totalScore >= 75 ? 'Good!' : 
+                   'Keep practicing!'}
+                </p>
+                <div className="mt-4 text-sm opacity-90">
+                  <p>Questions: {selectedSession.questionsCount}</p>
+                  <p>Total Attempts: {selectedSession.totalAttempts}</p>
+                  <p>Avg Attempts: {(selectedSession.totalAttempts / selectedSession.questionsCount).toFixed(1)} per question</p>
+                </div>
+              </div>
+            </div>
+
+            {/* 右側：五向雷達圖 */}
+            <div className="bg-white rounded-xl p-6 border-2 border-gray-200">
+              <h3 className="text-lg font-bold text-gray-800 mb-4 text-center">Performance Radar</h3>
+              {selectedSession.radar ? (
+                <div className="h-64">
+                  <Radar
+                    data={{
+                      labels: ['Pronunciation', 'Fluency', 'Accuracy', 'Comprehension', 'Confidence'],
+                      datasets: [{
+                        label: 'Your Performance',
+                        data: [
+                          selectedSession.radar.pronunciation,
+                          selectedSession.radar.fluency,
+                          selectedSession.radar.accuracy,
+                          selectedSession.radar.comprehension,
+                          selectedSession.radar.confidence
+                        ],
+                        backgroundColor: 'rgba(59, 130, 246, 0.2)',
+                        borderColor: 'rgba(59, 130, 246, 1)',
+                        borderWidth: 2,
+                        pointBackgroundColor: 'rgba(59, 130, 246, 1)',
+                        pointBorderColor: '#fff',
+                        pointHoverBackgroundColor: '#fff',
+                        pointHoverBorderColor: 'rgba(59, 130, 246, 1)',
+                      }]
+                    }}
+                    options={{
+                      responsive: true,
+                      maintainAspectRatio: false,
+                      scales: {
+                        r: {
+                          beginAtZero: true,
+                          max: 100,
+                          min: 0,
+                          ticks: { stepSize: 25 }
+                        }
+                      },
+                      plugins: {
+                        legend: { display: false }
+                      }
+                    }}
+                  />
+                </div>
+              ) : (
+                <p className="text-gray-500 text-center py-20">Radar data not available</p>
+              )}
+            </div>
+          </div>
+
+          {/* 使用統一報表組件 */}
+          <LessonReportDisplay
+            report={lessonReport}
+            showTranscript={true}
+            showHeader={false}
+            showRetry={true}  // 🆕 啟用 Retry 按鈕
+          />
+
+          {/* 底部按鈕 */}
+          <div className="flex gap-4 justify-center">
+            <button
+              onClick={() => router.push(`/lesson/${selectedSession.lessonId}`)}
+              className="px-6 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors shadow-md"
+            >
+              🔄 Retry This Lesson
+            </button>
+            <button
+              onClick={() => deleteSession(selectedSession.sessionId)}
+              className="px-6 py-3 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors shadow-md"
+            >
+              🗑️ Delete This Record
+            </button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // 主列表頁面
+  return (
+    <div className='min-h-screen bg-gradient-to-br from-blue-50 to-purple-50 p-8'>
+      <div className='max-w-6xl mx-auto'>
+        <div className="flex justify-between items-center mb-8">
+          <h1 className='text-4xl font-bold text-gray-800'>📚 Learning History</h1>
+          <div className="flex gap-4">
+            <Link href="/flashcards" className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+              Review Flashcards
+            </Link>
+            {history.length > 0 && (
+              <button
+                onClick={clearHistory}
+                className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600"
+              >
+                Clear All
+              </button>
+            )}
+            <button
+              onClick={() => router.push('/dashboard')}
+              className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600"
+            >
+              ← Dashboard
+            </button>
+          </div>
+        </div>
+
+        {/* 學習歷史 */}
+        {history.length === 0 ? (
+            <div className='text-center py-20'>
+              <div className='text-6xl mb-4'>📭</div>
+              <h2 className='text-2xl font-bold text-gray-700 mb-2'>No Learning History</h2>
+              <p className='text-gray-600 mb-6'>Complete some lessons to see your progress!</p>
+              <button
+                onClick={() => router.push('/dashboard')}
+                className="px-6 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600"
+              >
+                Start Learning
+              </button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {history.map((session) => (
+                <div
+                  key={session.sessionId}
+                  onClick={() => setSelectedSession(session)}
+                  className="bg-white rounded-xl shadow-lg hover:shadow-2xl transition-all cursor-pointer transform hover:scale-105 p-6"
+                >
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-500 rounded-full flex items-center justify-center">
+                      <span className="text-2xl font-bold text-white">
+                        {session.totalScore}
+                      </span>
+                    </div>
+                  </div>
+
+                  <h3 className="text-xl font-bold text-gray-800 mb-2">
+                    {session.lessonTitle}
+                  </h3>
+
+                  <div className="space-y-2 text-sm text-gray-600 mb-4">
+                    <div className="flex justify-between">
+                      <span>Questions:</span>
+                      <span className="font-semibold">{session.questionsCount}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Attempts:</span>
+                      <span className="font-semibold">{session.totalAttempts}</span>
+                    </div>
+                  </div>
+
+                  <div className="text-xs text-gray-500 border-t pt-2 mb-4">
+                    {new Date(session.completedAt).toLocaleString()}
+                  </div>
+
+                  <div className="flex gap-2">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        router.push(`/lesson/${session.lessonId}`)
+                      }}
+                      className="flex-1 px-3 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 text-sm"
+                    >
+                      Retry
+                    </button>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        deleteSession(session.sessionId)
+                      }}
+                      className="px-3 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 text-sm"
+                    >
+                      🗑️
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )
+        }
+      </div>
+    </div>
+  )
+}
+

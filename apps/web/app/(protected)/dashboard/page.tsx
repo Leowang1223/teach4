@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { API_BASE } from '../config'
 import Link from 'next/link'
 import DashboardLayout from '@/components/dashboard/DashboardLayout'
+import CoursePath from './CoursePath'
 
 interface LessonSummary {
   lesson_id: string
@@ -150,44 +151,30 @@ export default function DashboardPage() {
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-semibold text-slate-900">中文學習課程路線</h2>
               <div className="flex items-center gap-3">
-                <button className="px-3 py-1 rounded-full bg-slate-100 text-slate-900 text-sm">開始</button>
-                <button className="px-3 py-1 rounded-full bg-blue-600 hover:bg-blue-700 text-white text-sm">提交答案（慢速灌水）</button>
-              </div>
-            </div>
-
-            <div className="mt-6 overflow-x-auto -mx-4 px-4">
-              <div className="min-w-[720px]">
-                <div className="relative h-28">
-                  {/* 軌道 */}
-                  <div className="absolute inset-x-6 top-12 h-3 bg-slate-100 rounded-full overflow-hidden">
-                    <div className="absolute left-0 top-0 h-full bg-gradient-to-r from-blue-500 to-blue-600 animate-progress-shift" style={{ width: '33%' }} />
-                    {/* 兩個半透明箭頭 */}
-                    <div className="absolute top-0 left-8 h-full w-6 opacity-70 transform rotate-45 animate-arrow-slide">
-                      <svg viewBox="0 0 24 24" className="w-full h-full text-white">
-                        <rect x="0" y="0" width="24" height="24" fill="white" opacity="0.12" />
-                      </svg>
-                    </div>
-                    <div className="absolute top-0 left-28 h-full w-6 opacity-60 transform rotate-45 animate-arrow-slide delay-2000">
-                      <svg viewBox="0 0 24 24" className="w-full h-full text-white">
-                        <rect x="0" y="0" width="24" height="24" fill="white" opacity="0.08" />
-                      </svg>
-                    </div>
-                  </div>
-
-                  {/* 節點列 */}
-                  <div className="relative mt-0 flex items-center justify-between px-2">
-                    <RoadmapNode index={1} label="L1" state="completed" progress={100} />
-                    <RoadmapNode index={2} label="L2" state="completed" progress={100} />
-                    <RoadmapNode index={3} label="L3" state="active" progress={60} />
-                    <RoadmapNode index={4} label="L4" state="locked" progress={0} />
-                    <RoadmapNode index={5} label="L5" state="locked" progress={0} />
-                    <RoadmapNode index={6} label="L6" state="locked" progress={0} />
-                    <RoadmapNode index={7} label="L7" state="locked" progress={0} />
-                    <RoadmapNode index={8} label="L8" state="locked" progress={0} />
-                  </div>
+                  <button className="px-3 py-1 rounded-full bg-slate-100 text-slate-900 text-sm">開始</button>
                 </div>
-              </div>
             </div>
+              <div className="mt-6 -mx-4 px-4">
+                <CoursePath
+                  lessons={[
+                    { index: 1, title: 'L1', done: true, percent: 100 },
+                    { index: 2, title: 'L2', done: true, percent: 100 },
+                    { index: 3, title: 'L3', done: false, percent: 60, active: true },
+                    { index: 4, title: 'L4', done: false, percent: 0 },
+                    { index: 5, title: 'L5', done: false, percent: 0 },
+                    { index: 6, title: 'L6', done: false, percent: 0 },
+                    { index: 7, title: 'L7', done: false, percent: 0 },
+                    { index: 8, title: 'L8', done: false, percent: 0 },
+                  ]}
+                  progress={33}
+                  onStart={(lesson) => {
+                    console.log('CoursePath onStart:', lesson)
+                  }}
+                  onSubmit={(lesson) => {
+                    console.log('CoursePath onSubmit:', lesson)
+                  }}
+                />
+              </div>
           </section>
 
           {/* 保留原先的面試種類列表（功能不變） */}

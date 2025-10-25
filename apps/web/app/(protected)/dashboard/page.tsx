@@ -41,9 +41,7 @@ export default function DashboardPage() {
           <section className="rounded-2xl shadow-md p-6 bg-white mb-6">
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-semibold text-slate-900">中文學習課程路線</h2>
-              <div className="flex items-center gap-3">
-                  <button className="px-3 py-1 rounded-full bg-slate-100 text-slate-900 text-sm">開始</button>
-                </div>
+              {/* 按鈕已移除：所有課程進入由站點雙擊觸發（無新增按鈕） */}
             </div>
               <div className="mt-6 -mx-4 px-4">
                 <CoursePath

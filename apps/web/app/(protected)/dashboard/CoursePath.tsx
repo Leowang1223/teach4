@@ -35,19 +35,31 @@ export default function CoursePath({ lessons = [], progress = 0, onStart, onSubm
     <div className="w-full overflow-x-auto">
       <div className="min-w-[720px] relative">
         <div className="relative py-8">
-          <div className="absolute inset-x-6 top-8 h-2 bg-slate-100 rounded-full overflow-hidden" aria-hidden>
-            <div className="absolute left-0 top-0 h-full bg-gradient-to-r from-blue-500 to-blue-600" style={{ width: `${progress}%`, transition: 'width 900ms cubic-bezier(.22,.9,.32,1)' }} />
-            <div className="absolute top-0 left-8 h-full w-6 opacity-70 transform rotate-45 animate-course-arrow">
-              <svg viewBox="0 0 24 24" className="w-full h-full">
-                <rect x="0" y="0" width="24" height="24" fill="white" opacity="0.12" />
-              </svg>
-            </div>
-            <div className="absolute top-0 left-28 h-full w-6 opacity-60 transform rotate-45 animate-course-arrow delay-1500">
-              <svg viewBox="0 0 24 24" className="w-full h-full">
-                <rect x="0" y="0" width="24" height="24" fill="white" opacity="0.08" />
-              </svg>
+        {/* track: 灰色基底 + 藍色已解鎖覆蓋（覆蓋寬度由 progress 控制） */}
+        <div className="absolute inset-x-6 top-8 h-2 rounded-full" aria-hidden>
+          {/* 灰色基底（全長） */}
+          <div className="absolute inset-0 bg-slate-100 rounded-full" />
+          {/* 藍色已解鎖區段：從左至右覆蓋，視覺上與節點對齊 */}
+          <div
+            className="absolute left-0 top-0 h-full rounded-full overflow-hidden"
+            style={{ width: `${progress}%`, transition: 'width 900ms cubic-bezier(.22,.9,.32,1)' }}
+            aria-hidden
+          >
+            <div className="h-full w-full bg-gradient-to-r from-blue-500 to-blue-600 relative overflow-hidden">
+              {/* 裝飾性移動箭頭（不新增互動按鈕） */}
+              <div className="absolute top-0 left-2 h-full w-6 opacity-70 transform rotate-45 animate-course-arrow pointer-events-none">
+                <svg viewBox="0 0 24 24" className="w-full h-full">
+                  <rect x="0" y="0" width="24" height="24" fill="white" opacity="0.12" />
+                </svg>
+              </div>
+              <div className="absolute top-0 left-24 h-full w-6 opacity-60 transform rotate-45 animate-course-arrow delay-1500 pointer-events-none">
+                <svg viewBox="0 0 24 24" className="w-full h-full">
+                  <rect x="0" y="0" width="24" height="24" fill="white" opacity="0.08" />
+                </svg>
+              </div>
             </div>
           </div>
+        </div>
 
           <div className="relative flex items-center justify-between px-2">
               {lessons.map((ls, i) => (

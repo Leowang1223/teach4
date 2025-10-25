@@ -50,37 +50,28 @@ export default function CoursePath({ lessons = [], progress = 0, onStart, onSubm
           </div>
 
           <div className="relative flex items-center justify-between px-2">
-            {lessons.map((ls, i) => (
-              <Station
-                key={ls.index}
-                data-testid={`station-${ls.index}`}
-                index={ls.index}
-                title={ls.title}
-                done={!!ls.done}
-                active={!!ls.active}
-                percent={typeof ls.percent === 'number' ? ls.percent : 0}
-                flash={!!animState[ls.index]?.flashed}
-                onSelect={() => setSelected(i)}
-                onComplete={() => handleComplete(i)}
-              />
-            ))}
+              {lessons.map((ls, i) => (
+                <Station
+                  key={ls.index}
+                  data-testid={`station-${ls.index}`}
+                  index={ls.index}
+                  title={ls.title}
+                  done={!!ls.done}
+                  active={!!ls.active}
+                  percent={typeof ls.percent === 'number' ? ls.percent : 0}
+                  flash={!!animState[ls.index]?.flashed}
+                  // 選取仍設定 selected；雙擊直接觸發 onStart(lesson)
+                  onSelect={() => setSelected(i)}
+                  onComplete={() => handleComplete(i)}
+                  onDoubleClick={() => { setSelected(i); onStart?.(lessons[i]); }}
+                />
+              ))}
           </div>
         </div>
       </div>
       <div className="sr-only" aria-live="polite" ref={liveRef} />
 
-      <div className="mt-4 flex items-center gap-3">
-        <button
-          className="px-3 py-1 rounded-full bg-blue-600 hover:bg-blue-700 text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-600/50 disabled:opacity-50"
-          onClick={() => { if (selected != null) { onStart?.(lessons[selected]); } }}
-          aria-label="Start selected lesson"
-          aria-pressed={false}
-          data-testid="coursepath-start"
-          disabled={selected == null}
-        >
-          開始
-        </button>
-      </div>
+      {/* Start button removed per request — entry via double-click on station number. */}
 
       <style jsx>{`
         .animate-course-arrow { animation: courseArrow 3s linear infinite; }
@@ -91,7 +82,7 @@ export default function CoursePath({ lessons = [], progress = 0, onStart, onSubm
   )
 }
 
-function Station({ index, title, done, active, percent, flash, onSelect, onComplete, ...rest }: {
+function Station({ index, title, done, active, percent, flash, onSelect, onComplete, onDoubleClick, ...rest }: {
   index: number
   title: string
   done?: boolean
@@ -100,6 +91,7 @@ function Station({ index, title, done, active, percent, flash, onSelect, onCompl
   flash?: boolean
   onSelect?: () => void
   onComplete?: () => void
+        onDoubleClick?: () => void
   [k: string]: any
 }) {
   const circleId = `station-clip-${index}`
@@ -110,11 +102,12 @@ function Station({ index, title, done, active, percent, flash, onSelect, onCompl
       <button
         role="button"
         aria-pressed={active || done}
-        aria-label={`Lesson ${index} ${title} ${ariaState}`}
+        aria-label={`Lesson ${index} ${title} ${ariaState}. Double-click the number to start.`}
         className={`relative z-10 w-12 h-12 rounded-full flex items-center justify-center text-sm font-semibold focus:outline-none focus:ring-2 ${
           done ? 'bg-blue-600 text-white' : active ? 'bg-blue-50 text-slate-900 ring-1 ring-blue-200' : 'bg-white border border-slate-200 text-slate-600'
         }`}
         onClick={() => onSelect && onSelect()}
+        onDoubleClick={(e) => { e.stopPropagation(); onDoubleClick && onDoubleClick(); }}
         {...rest}
       >
         <svg className="absolute inset-0 w-12 h-12" viewBox="0 0 48 48" aria-hidden>

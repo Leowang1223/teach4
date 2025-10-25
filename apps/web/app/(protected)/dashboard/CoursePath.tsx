@@ -71,11 +71,12 @@ export default function CoursePath({ lessons = [], progress = 0, onStart, onSubm
 
       <div className="mt-4 flex items-center gap-3">
         <button
-          className="px-3 py-1 rounded-full bg-blue-600 hover:bg-blue-700 text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-600/50"
+          className="px-3 py-1 rounded-full bg-blue-600 hover:bg-blue-700 text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-600/50 disabled:opacity-50"
           onClick={() => { if (selected != null) { onStart?.(lessons[selected]); } }}
           aria-label="Start selected lesson"
           aria-pressed={false}
           data-testid="coursepath-start"
+          disabled={selected == null}
         >
           開始
         </button>
@@ -136,11 +137,8 @@ function Station({ index, title, done, active, percent, flash, onSelect, onCompl
         <span className="relative z-20 pointer-events-none">{index}</span>
       </button>
 
-      <div className="mt-3 text-sm text-slate-600">{title}</div>
-
-      <div className="mt-2 flex gap-2">
+      <div className="sr-only" aria-hidden={false}>
         <button
-          className="text-xs px-2 py-1 rounded-full bg-slate-100 text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-600/40"
           onClick={() => onSelect && onSelect()}
           aria-label={`Select lesson ${index}`}
           data-testid={`station-select-${index}`}
@@ -148,7 +146,6 @@ function Station({ index, title, done, active, percent, flash, onSelect, onCompl
           選取
         </button>
         <button
-          className="text-xs px-2 py-1 rounded-full bg-blue-50 text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-600/40"
           onClick={() => onComplete && onComplete()}
           aria-label={`Complete lesson ${index}`}
           data-testid={`station-complete-${index}`}

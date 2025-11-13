@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Radar } from 'react-chartjs-2'
+import { RefreshCw, Trash2, Layers, BookOpen, X } from 'lucide-react'
 import {
   Chart as ChartJS,
   RadialLinearScale,
@@ -13,7 +14,8 @@ import {
   Legend,
 } from 'chart.js'
 import { LessonReportDisplay, type LessonReport } from '../components/report'
-import Link from 'next/link'
+import type { MispronouncedEntry, Suggestions } from '../components/report/types'
+import { AppButton } from '@/components/ui/AppButton'
 
 ChartJS.register(
   RadialLinearScale,
@@ -52,16 +54,12 @@ interface LessonHistory {
       comprehension: number
       confidence: number
     }
-    suggestions?: {
-      pronunciation?: string
-      fluency?: string
-      accuracy?: string
-      comprehension?: string
-      confidence?: string
-    }
+    suggestions?: Suggestions
+    detailedSuggestions?: string[]
     overallPractice?: string
     feedback?: string
     transcript?: string
+    mispronounced?: MispronouncedEntry[]
   }>
 }
 
@@ -137,9 +135,11 @@ export default function HistoryPage() {
           confidence: 0
         },
         suggestions: r.suggestions,
+        detailedSuggestions: r.detailedSuggestions || undefined,
         overallPractice: r.overallPractice,
         feedback: r.feedback,
         transcript: r.transcript,
+        mispronounced: r.mispronounced || [],
         attempts: r.attempts
       }))
     }
@@ -248,19 +248,22 @@ export default function HistoryPage() {
           />
 
           {/* 底部按鈕 */}
-          <div className="flex gap-4 justify-center">
-            <button
+          <div className="flex flex-wrap gap-4 justify-center">
+            <AppButton
+              icon={RefreshCw}
               onClick={() => router.push(`/lesson/${selectedSession.lessonId}`)}
-              className="px-6 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors shadow-md"
+              className="max-w-none w-auto"
             >
-              🔄 Retry This Lesson
-            </button>
-            <button
+              Retry This Lesson
+            </AppButton>
+            <AppButton
+              icon={Trash2}
+              variant="danger"
               onClick={() => deleteSession(selectedSession.sessionId)}
-              className="px-6 py-3 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors shadow-md"
+              className="max-w-none w-auto"
             >
-              🗑️ Delete This Record
-            </button>
+              Delete This Record
+            </AppButton>
           </div>
         </div>
       </div>
@@ -273,17 +276,23 @@ export default function HistoryPage() {
       <div className='max-w-6xl mx-auto'>
         <div className="flex justify-between items-center mb-8">
           <h1 className='text-4xl font-bold text-gray-800'>📚 Learning History</h1>
-          <div className="flex gap-4">
-            <Link href="/flashcards" className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+          <div className="flex flex-wrap gap-4">
+            <AppButton
+              icon={Layers}
+              className="max-w-none w-auto px-5"
+              onClick={() => router.push('/flashcards')}
+            >
               Review Flashcards
-            </Link>
+            </AppButton>
             {history.length > 0 && (
-              <button
+              <AppButton
+                icon={X}
+                variant="danger"
                 onClick={clearHistory}
-                className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600"
+                className="max-w-none w-auto px-5"
               >
                 Clear All
-              </button>
+              </AppButton>
             )}
             <button
               onClick={() => router.push('/dashboard')}
@@ -300,12 +309,13 @@ export default function HistoryPage() {
               <div className='text-6xl mb-4'>📭</div>
               <h2 className='text-2xl font-bold text-gray-700 mb-2'>No Learning History</h2>
               <p className='text-gray-600 mb-6'>Complete some lessons to see your progress!</p>
-              <button
+              <AppButton
+                icon={BookOpen}
                 onClick={() => router.push('/dashboard')}
-                className="px-6 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600"
+                className="max-w-none w-auto"
               >
                 Start Learning
-              </button>
+              </AppButton>
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -336,31 +346,36 @@ export default function HistoryPage() {
                       <span>Attempts:</span>
                       <span className="font-semibold">{session.totalAttempts}</span>
                     </div>
-                  </div>
-
-                  <div className="text-xs text-gray-500 border-t pt-2 mb-4">
-                    {new Date(session.completedAt).toLocaleString()}
+                    <div className="flex justify-between">
+                      <span>Completed:</span>
+                      <span className="font-semibold">
+                        {new Date(session.completedAt).toLocaleDateString()}
+                      </span>
+                    </div>
                   </div>
 
                   <div className="flex gap-2">
-                    <button
+                    <AppButton
+                      icon={RefreshCw}
                       onClick={(e) => {
                         e.stopPropagation()
                         router.push(`/lesson/${session.lessonId}`)
                       }}
-                      className="flex-1 px-3 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 text-sm"
+                      className="flex-1 max-w-none w-auto px-4 py-2 text-xs"
                     >
                       Retry
-                    </button>
-                    <button
+                    </AppButton>
+                    <AppButton
+                      icon={Trash2}
+                      variant="danger"
                       onClick={(e) => {
                         e.stopPropagation()
                         deleteSession(session.sessionId)
                       }}
-                      className="px-3 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 text-sm"
+                      className="max-w-none w-auto px-4 py-2 text-xs"
                     >
-                      🗑️
-                    </button>
+                      Delete
+                    </AppButton>
                   </div>
                 </div>
               ))}

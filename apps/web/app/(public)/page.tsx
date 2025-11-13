@@ -1,47 +1,28 @@
 import Link from 'next/link'
-import Image from 'next/image'
+import FancyButton from '@/components/ui/FancyButton'
 
 export default function Home() {
   return (
-    <main className="min-h-screen flex flex-col items-center justify-center p-24 bg-white">
-      <div className="z-10 max-w-5xl w-full items-center justify-between font-mono text-sm">
-        <div className="text-center mb-8">
-          <Image
-            src="/logo/interviewPlus_logo.png"
-            alt="InterviewPlus Logo"
-            width={300}
-            height={80}
-            className="mx-auto mb-6"
-            priority
-          />
-        </div>
-        <p className="text-center mb-8 text-lg">
-          透過 AI 驅動的模擬面試練習你的面試技巧
-        </p>
-        <div className="text-center space-y-4">
-          <div className="space-x-4">
-            <Link 
-              href="/login"
-              className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg transition-colors"
-            >
-              登入
+    <main className="min-h-screen flex items-center justify-center px-6 py-20">
+      <div className="text-center space-y-12 max-w-2xl mx-auto">
+        <div className="glass-card px-16 py-20 space-y-8 shadow-2xl">
+          <p className="chip mx-auto">Talk Learning</p>
+          <h1 className="hero-title">talk learning</h1>
+          <p className="hero-subtitle text-lg mt-6">
+            Master Chinese through interactive conversations
+          </p>
+          <div className="flex flex-wrap gap-5 justify-center pt-4">
+            <Link href="/login">
+              <FancyButton variant="solid">log in</FancyButton>
             </Link>
-            <Link 
-              href="/register"
-              className="bg-white hover:bg-gray-50 text-blue-600 font-bold py-3 px-6 rounded-lg border-2 border-blue-600 transition-colors"
-            >
-              註冊
-            </Link>
-          </div>
-          <div className="pt-4">
-            <Link 
-              href="/prepare"
-              className="text-blue-600 hover:text-blue-700 font-medium text-sm"
-            >
-              直接開始模擬面試 →
+            <Link href="/register">
+              <FancyButton variant="outline">sign up</FancyButton>
             </Link>
           </div>
         </div>
+        <Link href="/prepare" className="text-sm text-slate-500 hover:text-slate-700 transition inline-block">
+          preview a lesson flow →
+        </Link>
       </div>
     </main>
   )

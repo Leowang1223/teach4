@@ -1,0 +1,20 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm run build:*)",
+      "Bash(npm install:*)",
+      "Bash(npm run dev:*)",
+      "Bash(npm start)",
+      "Bash(curl:*)",
+      "Bash(netstat:*)",
+      "Bash(findstr:*)",
+      "Bash(taskkill /F /PID 6564)",
+      "Bash(taskkill //F //PID 6564)",
+      "Bash(taskkill //F //PID 39544)",
+      "Bash(npm run dev:frontend:*)",
+      "Bash(npm run dev:backend:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

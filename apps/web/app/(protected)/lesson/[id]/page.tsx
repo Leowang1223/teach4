@@ -17,6 +17,8 @@ import { pinyin } from 'pinyin-pro'
 
 // 報表組件
 import { LessonReportDisplay, type LessonReport } from '../../components/report'
+import { SuggestionsDisplay } from '../../components/report/SuggestionsDisplay'
+import type { MispronouncedEntry, Suggestions } from '../../components/report/types'
 import { API_BASE } from '../../config'
 
 // 🔧 字串相似度計算工具（Levenshtein Distance）
@@ -132,6 +134,30 @@ function getCharPinyin(char: string): string {
   } catch {
     return ''
   }
+}
+
+const normalizeMispronouncedEntries = (source: any): MispronouncedEntry[] => {
+  if (!Array.isArray(source)) return []
+  return source
+    .map((entry) => {
+      if (!entry) return null
+      if (typeof entry === 'string') {
+        const text = entry.trim()
+        return text ? { text } : null
+      }
+      if (typeof entry === 'object') {
+        const text = entry.text || entry.character || entry.word || ''
+        if (!text) return null
+        return {
+          text,
+          pinyin: entry.pinyin || entry.phonetic || entry.pronunciation,
+          issue: entry.issue || entry.reason || entry.message,
+          tip: entry.tip || entry.suggestion || entry.advice
+        } as MispronouncedEntry
+      }
+      return null
+    })
+    .filter((item): item is MispronouncedEntry => !!item && !!item.text)
 }
 
 function analyzeErrors(expected: string, actual: string): CharacterError[] {
@@ -809,13 +835,15 @@ interface StepResult {
     accuracy?: string
     comprehension?: string
     confidence?: string
-  }
+  } | string[]  // 支持对象或数组格式
+  detailedSuggestions?: string[]  // 详细建议数组
   overallPractice?: string
   feedback?: string
   transcript?: string
   expectedAnswer?: string  // 🆕 正確答案
   errors?: CharacterError[]  // 🆕 錯誤字列表
   correctionFeedback?: string  // 🆕 糾正建議
+  mispronounced?: MispronouncedEntry[]  // 🆕 读错的字
   apiResponse?: any
 }
 
@@ -847,8 +875,8 @@ interface FullReport {
 interface CurrentFeedback {
   score: number
   similarity?: number
-  phonemeSimilarity?: number    // 🔧 拼音相似度
-  toneAccuracy?: number          // 🔧 聲調準確度
+  phonemeSimilarity?: number
+  toneAccuracy?: number
   detailedScores?: {
     pronunciation: number
     fluency: number
@@ -862,13 +890,17 @@ interface CurrentFeedback {
   errors?: CharacterError[]
   correctionFeedback?: string
   detailedAnalysis?: DetailedCharacterAnalysis
-  slotErrors?: string[]          // 🔧 新增：槽位錯誤列表
-  slotMismatchPositions?: number[]  // 🔧 新增：槽位錯誤位置
-  suggestions?: Record<string, string>
+  slotErrors?: string[]
+  slotMismatchPositions?: number[]
+  suggestions?: Suggestions
+  detailedSuggestions?: string[]
   overallPractice?: string
+  mispronounced?: MispronouncedEntry[]
   passed: boolean
   fullResult?: any
 }
+
+
 
 export default function LessonPage() {
   const params = useParams()
@@ -1436,6 +1468,21 @@ export default function LessonPage() {
         
         const backendScore = result.overall_score || result.total_score || result.score || 0
         const detailedScores = result.scores || result.detailed_scores || null
+        const rawSuggestions = result.suggestions
+        const suggestionArray = Array.isArray(rawSuggestions) ? rawSuggestions.filter(Boolean) : undefined
+        const suggestionObject =
+          !Array.isArray(rawSuggestions) && rawSuggestions && typeof rawSuggestions === 'object'
+            ? (rawSuggestions as Record<string, string>)
+            : undefined
+        const normalizedSuggestions: Suggestions | undefined =
+          suggestionObject || (suggestionArray && suggestionArray.length ? suggestionArray : undefined)
+        const detailedSuggestionList =
+          Array.isArray(result.detailedSuggestions)
+            ? result.detailedSuggestions.filter(Boolean)
+            : Array.isArray(result.detailed_suggestions)
+              ? result.detailed_suggestions.filter(Boolean)
+              : undefined
+        const mispronouncedEntries = normalizeMispronouncedEntries(result.mispronounced)
 
         console.log('\n' + '='.repeat(60))
         console.log('🎯 開始評分流程')
@@ -1535,8 +1582,10 @@ export default function LessonPage() {
           detailedAnalysis: bestMatch.detailedAnalysis,
           slotErrors: bestMatch.slotCheck.errors,  // 🔧 新增：槽位錯誤
           slotMismatchPositions: bestMatch.slotCheck.mismatchPositions,  // 🔧 新增：錯誤位置
-          suggestions: result.suggestions || {},
+          suggestions: normalizedSuggestions,
+          detailedSuggestions: detailedSuggestionList,
           overallPractice: result.overallPractice || '',
+          mispronounced: mispronouncedEntries,
           passed,
           fullResult: result
         })
@@ -1557,8 +1606,10 @@ export default function LessonPage() {
             comprehension: finalScore,
             confidence: finalScore
           },
-          suggestions: result.suggestions || {},
+          suggestions: normalizedSuggestions,
+          detailedSuggestions: detailedSuggestionList,
           overallPractice: result.overallPractice || '',
+          mispronounced: mispronouncedEntries,
           feedback: result.feedback || '',
           transcript: rawTranscript,
           expectedAnswer: bestMatch.expectedAnswer,  // 🆕 正確答案
@@ -1854,7 +1905,9 @@ export default function LessonPage() {
         },
         // 🔧 新增：儲存 suggestions 和 overallPractice
         suggestions: r.suggestions || null,
+        detailedSuggestions: r.detailedSuggestions || null,
         overallPractice: r.overallPractice || null,
+        mispronounced: r.mispronounced || null,
         feedback: r.feedback || (
           r.score >= 90 ? "Excellent performance! Your pronunciation and fluency are outstanding." :
           r.score >= 75 ? "Good job! You passed this question successfully." :
@@ -2467,3 +2520,5 @@ export default function LessonPage() {
     </div>
   )
 }
+
+

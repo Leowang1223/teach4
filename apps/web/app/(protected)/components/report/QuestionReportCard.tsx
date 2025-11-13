@@ -6,6 +6,8 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
+import { RefreshCw } from 'lucide-react'
+import { AppButton } from '@/components/ui/AppButton'
 import { type StepResult } from './types'
 import { ScoreBadge } from './ScoreBadge'
 import { DetailedScoresDisplay } from './DetailedScoresDisplay'
@@ -135,6 +137,28 @@ export function QuestionReportCard({
         </div>
       )}
 
+      {/* 語音辨識的讀錯字 */}
+      {result.mispronounced && result.mispronounced.length > 0 && (
+        <div className="bg-orange-50 rounded-lg p-4 border-l-4 border-orange-400 mb-4">
+          <h4 className="text-sm font-semibold text-orange-800 mb-3 flex items-center gap-2">
+            <span className="text-lg">🔈</span>
+            Mispronounced Words:
+          </h4>
+          <div className="space-y-2">
+            {result.mispronounced.map((item, idx) => (
+              <div key={idx} className="bg-white rounded p-3 text-sm border border-orange-100">
+                <div className="flex items-center gap-2 text-gray-900">
+                  <span className="text-xl font-bold text-orange-600">{item.text}</span>
+                  {item.pinyin && <span className="text-xs text-gray-500">({item.pinyin})</span>}
+                </div>
+                {item.issue && <p className="text-xs text-gray-600 mt-1">Issue: {item.issue}</p>}
+                {item.tip && <p className="text-xs text-gray-600 mt-0.5">Tip: {item.tip}</p>}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* 詳細評分 */}
       {SHOW_SCORES && result.detailedScores && (
         <div className="bg-white rounded-lg p-4 mb-4">
@@ -144,9 +168,10 @@ export function QuestionReportCard({
       )}
 
       {/* 建議（新版格式） */}
-      {(result.suggestions || result.overallPractice) && (
+      {(result.suggestions || result.detailedSuggestions || result.overallPractice) && (
         <SuggestionsDisplay 
           suggestions={result.suggestions}
+          detailedSuggestions={result.detailedSuggestions}
           overallPractice={result.overallPractice}
         />
       )}
@@ -161,13 +186,13 @@ export function QuestionReportCard({
 
       {/* 🆕 Retry 按鈕 */}
       {showRetry && lessonId && (
-        <button
+        <AppButton
+          icon={RefreshCw}
           onClick={() => router.push(`/history/playback/${lessonId}/${result.stepId}`)}
-          className="mt-4 w-full px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-2"
+          className="mt-4 max-w-none w-full"
         >
-          <span className="text-lg">🔊</span>
-          <span className="font-semibold">Retry This Question</span>
-        </button>
+          Retry This Question
+        </AppButton>
       )}
     </div>
   )

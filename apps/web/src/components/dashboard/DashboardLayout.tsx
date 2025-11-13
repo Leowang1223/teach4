@@ -3,7 +3,6 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Topbar from './Topbar'
-import Sidebar from './Sidebar'
 import { getCookie, clearAuthCookies } from '@/lib/cookies'
 
 interface DashboardLayoutProps {
@@ -43,10 +42,9 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   }
 
   return (
-    <div className="dashboard-layout">
+    <div className="min-h-screen">
       <Topbar userEmail={userEmail} onLogout={handleLogout} />
-      <Sidebar />
-      <main className="main-content">
+      <main className="container mx-auto px-6 py-12 max-w-7xl">
         {children}
       </main>
     </div>

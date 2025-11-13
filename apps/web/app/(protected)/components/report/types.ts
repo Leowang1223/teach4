@@ -1,15 +1,14 @@
-/**
- * 報表相關的共用類型定義
+﻿/**
+ * Shared report types
  */
 
-// 🆕 字符錯誤類型
 export interface CharacterError {
-  expected: string    // 正確的字
-  actual: string      // 用戶說的字
-  position: number    // 位置
-  type: 'missing' | 'wrong' | 'extra'  // 錯誤類型
-  expectedPinyin?: string   // 正確拼音
-  actualPinyin?: string     // 用戶拼音
+  expected: string
+  actual: string
+  position: number
+  type: 'missing' | 'wrong' | 'extra'
+  expectedPinyin?: string
+  actualPinyin?: string
 }
 
 export interface DetailedScores {
@@ -20,13 +19,22 @@ export interface DetailedScores {
   confidence: number
 }
 
-export interface Suggestions {
+export interface MispronouncedEntry {
+  text: string
+  pinyin?: string
+  issue?: string
+  tip?: string
+}
+
+export interface DimensionSuggestions {
   pronunciation?: string
   fluency?: string
   accuracy?: string
   comprehension?: string
   confidence?: string
 }
+
+export type Suggestions = DimensionSuggestions | string[]
 
 export interface StepResult {
   stepId: number
@@ -35,13 +43,15 @@ export interface StepResult {
   attempts: number
   passed: boolean
   detailedScores?: DetailedScores
-  feedback?: string // 舊版建議（向後兼容）
-  suggestions?: Suggestions // 新版每個維度的建議
-  overallPractice?: string // 總體練習方法
+  feedback?: string
+  suggestions?: Suggestions
+  detailedSuggestions?: string[]
+  overallPractice?: string
   transcript?: string
-  expectedAnswer?: string  // 🆕 正確答案
-  errors?: CharacterError[]  // 🆕 錯誤字列表
-  correctionFeedback?: string  // 🆕 糾正建議
+  expectedAnswer?: string
+  errors?: CharacterError[]
+  correctionFeedback?: string
+  mispronounced?: MispronouncedEntry[]
 }
 
 export interface LessonReport {

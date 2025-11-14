@@ -1,6 +1,6 @@
 ﻿'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   AnimatePresence,
   motion,
@@ -15,6 +15,8 @@ import {
   addCustomFlashcard,
   loadAllFlashcards as loadLocalFlashcards,
   type Flashcard as LocalFlashcard,
+  getDeckNames as getLocalDeckNames,
+  addDeckName as registerDeckName,
 } from './utils/flashcards'
 import {
   loadAllFlashcards as loadRemoteFlashcards,
@@ -26,18 +28,17 @@ import { useRouter } from 'next/navigation'
 
 import styles from './flashcard.module.css'
 
-type CardSource = 'course-mistake' | 'practice-saved' | 'custom' | 'api'
-
 interface DeckCard {
   id: string
   front: string
   pinyin?: string
   back: string
-  source: CardSource
   createdAt: number
+  deckName?: string
   metadata?: {
     courseId?: string
     questionIndex?: number
+    source?: string
   }
 }
 
@@ -54,7 +55,10 @@ export default function FlashcardsPage() {
   const [formValues, setFormValues] = useState({ hanzi: '', pinyin: '', english: '' })
 
   const [isLoading, setIsLoading] = useState(true)
-  const [activeDeck, setActiveDeck] = useState<'all' | CardSource>('all')
+  const [activeDeck, setActiveDeck] = useState<string>('all')
+  const [deckNames, setDeckNames] = useState<string[]>([])
+  const [showDeckForm, setShowDeckForm] = useState(false)
+  const [newDeckName, setNewDeckName] = useState('')
 
   const router = useRouter()
 
@@ -62,10 +66,24 @@ export default function FlashcardsPage() {
   const rotateZ = useTransform(x, [-180, 0, 180], [8, 0, -8])
 
   const activeCard = cards[currentIndex]
+  const combinedDecks = useMemo(() => {
+    const set = new Set<string>()
+    deckNames.forEach(name => set.add(name))
+    allCards.forEach(card => {
+      if (card.deckName) set.add(card.deckName)
+    })
+    return Array.from(set).sort((a, b) => a.localeCompare(b))
+  }, [deckNames, allCards])
+
+  const deckOptions = useMemo(() => ['all', ...combinedDecks], [combinedDecks])
 
   useEffect(() => {
     refreshCards().catch(() => null)
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  useEffect(() => {
+    setDeckNames(getLocalDeckNames())
   }, [])
 
   useEffect(() => {
@@ -86,13 +104,17 @@ export default function FlashcardsPage() {
 
       setAllCards(mapped)
       applyDeckFilter(mapped, activeDeck)
+      setDeckNames(getLocalDeckNames())
     } finally {
       setIsLoading(false)
     }
   }
 
-  function applyDeckFilter(list: DeckCard[], deck: 'all' | CardSource) {
-    const filtered = deck === 'all' ? list : list.filter(card => card.source === deck)
+  function applyDeckFilter(list: DeckCard[], deck: string) {
+    const filtered =
+      deck === 'all'
+        ? list
+        : list.filter(card => (card.deckName || 'General').toLowerCase() === deck.toLowerCase())
     setCards(filtered)
     setCurrentIndex(0)
     setIsFlipped(false)
@@ -100,33 +122,45 @@ export default function FlashcardsPage() {
 
   function mapRemoteCard(card: RemoteFlashcard): DeckCard {
     const createdAt = card.createdAt instanceof Date ? card.createdAt.getTime() : Date.now()
-    const source: CardSource = card.metadata?.source === 'course' ? 'course-mistake' : 'api'
+    const deckName = card.metadata?.deckName || 'Synced'
     return {
       id: `api-${card.id}`,
       front: card.front ?? '',
       back: card.back ?? '',
       pinyin: undefined,
-      source,
       createdAt,
+      deckName,
       metadata: card.metadata,
     }
   }
 
   function mapLocalCard(card: LocalFlashcard): DeckCard {
     const createdAt = card.createdAt ? new Date(card.createdAt).getTime() : Date.now()
-    const source: CardSource = card.custom ? 'custom' : 'practice-saved'
+    const source = card.custom ? 'custom' : 'practice-saved'
     return {
       id: `local-${card.id}`,
       front: card.prompt || '',
       back: card.expectedAnswer || '',
       pinyin: card.pinyin,
-      source,
       createdAt,
+      deckName: card.deckName || (card.custom ? 'Custom Card' : 'Practice Saved'),
       metadata: {
         courseId: card.lessonId?.toString(),
         questionIndex: typeof card.questionId === 'number' ? card.questionId : undefined,
+        source
       },
     }
+  }
+
+  function handleAddDeck() {
+    const clean = newDeckName.trim()
+    if (!clean) return
+    registerDeckName(clean)
+    setDeckNames(getLocalDeckNames())
+    setNewDeckName('')
+    setShowDeckForm(false)
+    setActiveDeck(clean)
+    applyDeckFilter(allCards, clean)
   }
 
   function handleSwipe(direction: number) {
@@ -218,18 +252,21 @@ export default function FlashcardsPage() {
 
         {/* Deck selector */}
         <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {deckOptions.map(option => {
-            const count = option.key === 'all'
-              ? allCards.length
-              : allCards.filter(card => card.source === option.key).length
-            const isActive = activeDeck === option.key
+          {deckOptions.map(name => {
+            const count =
+              name === 'all'
+                ? allCards.length
+                : allCards.filter(
+                    card => (card.deckName || 'General').toLowerCase() === name.toLowerCase()
+                  ).length
+            const isActive = activeDeck.toLowerCase() === name.toLowerCase()
             return (
               <button
-                key={option.key}
+                key={name}
                 type="button"
                 onClick={() => {
-                  setActiveDeck(option.key)
-                  applyDeckFilter(allCards, option.key)
+                  setActiveDeck(name)
+                  applyDeckFilter(allCards, name)
                 }}
                 className={`rounded-2xl border px-4 py-3 text-left shadow-sm transition ${
                   isActive
@@ -237,11 +274,47 @@ export default function FlashcardsPage() {
                     : 'border-slate-200 bg-white text-slate-600 hover:border-blue-100'
                 }`}
               >
-                <p className="text-sm font-semibold">{option.label}</p>
+                <p className="text-sm font-semibold">{name === 'all' ? 'All Cards' : name}</p>
                 <p className="text-xs opacity-70">{count} cards</p>
               </button>
             )
           })}
+        </div>
+        <div className="mt-4">
+          {showDeckForm ? (
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+              <input
+                value={newDeckName}
+                onChange={(e) => setNewDeckName(e.target.value)}
+                className="flex-1 rounded-xl border border-slate-200 px-4 py-2 text-sm text-slate-700 focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-100"
+                placeholder="Deck name"
+              />
+              <AppButton
+                className="max-w-none w-auto px-4"
+                onClick={handleAddDeck}
+              >
+                Save Deck
+              </AppButton>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowDeckForm(false)
+                  setNewDeckName('')
+                }}
+                className="text-sm text-slate-500 hover:text-slate-700"
+              >
+                Cancel
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setShowDeckForm(true)}
+              className="text-sm text-blue-600 font-semibold hover:underline"
+            >
+              + Create Deck
+            </button>
+          )}
         </div>
 
         <AnimatePresence initial={false}>
@@ -341,7 +414,7 @@ export default function FlashcardsPage() {
                             )}
                           </div>
                           <div className="flex items-center justify-between px-1 text-xs uppercase tracking-wider text-slate-400">
-                            <span>{sourceLabel(activeCard.source)}</span>
+                            <span>{activeCard.deckName || 'General'}</span>
                             <button
                               type="button"
                               onClick={(e) => {
@@ -443,23 +516,4 @@ export default function FlashcardsPage() {
   )
 }
 
-function sourceLabel(source: CardSource): string {
-  switch (source) {
-    case 'course-mistake':
-      return 'Course Mistake'
-    case 'practice-saved':
-      return 'Saved from Practice'
-    case 'custom':
-      return 'Custom Card'
-    default:
-      return 'Synced Card'
-  }
-}
 
-const deckOptions: Array<{ key: 'all' | CardSource; label: string }> = [
-  { key: 'all', label: 'All Cards' },
-  { key: 'course-mistake', label: 'Course Mistakes' },
-  { key: 'practice-saved', label: 'Practice Saved' },
-  { key: 'custom', label: 'Custom Cards' },
-  { key: 'api', label: 'Synced Cards' },
-]

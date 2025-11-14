@@ -2,6 +2,7 @@
   source?: string
   courseId?: string
   questionIndex?: number
+  deckName?: string
   [key: string]: unknown
 }
 
@@ -11,6 +12,7 @@ export interface Flashcard {
   back?: string
   createdAt?: string | number | Date
   metadata?: RemoteFlashcardMetadata
+  deckName?: string
 }
 
 export async function loadAllFlashcards(): Promise<Flashcard[]> {
@@ -36,3 +38,5 @@ export async function loadAllFlashcards(): Promise<Flashcard[]> {
     return []
   }
 }
+
+

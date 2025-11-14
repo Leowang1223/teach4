@@ -14,6 +14,7 @@ export interface Flashcard {
   errors?: any[]
   custom?: boolean
   createdAt?: string
+  deckName?: string
 
   lastSeen?: string
   timesSeen?: number
@@ -25,6 +26,8 @@ export interface Flashcard {
 }
 
 const LS_KEY = 'flashcards_v2'
+const LS_DECKS_KEY = 'flashcard_decks_v1'
+const DEFAULT_DECKS = ['General', 'Course Mistakes', 'Practice Saved']
 
 function safeNowISO() {
   try {
@@ -49,6 +52,24 @@ function saveFlashcards(list: Flashcard[]) {
   localStorage.setItem(LS_KEY, JSON.stringify(list))
 }
 
+function loadDeckNames(): string[] {
+  if (typeof window === 'undefined') return [...DEFAULT_DECKS]
+  try {
+    const raw = localStorage.getItem(LS_DECKS_KEY)
+    const parsed = raw ? JSON.parse(raw) : []
+    const merged = [...DEFAULT_DECKS, ...(Array.isArray(parsed) ? parsed : [])]
+    return Array.from(new Set(merged.map(name => String(name).trim()).filter(Boolean)))
+  } catch {
+    return [...DEFAULT_DECKS]
+  }
+}
+
+function saveDeckNames(names: string[]) {
+  if (typeof window === 'undefined') return
+  const unique = Array.from(new Set(names.map(name => String(name).trim()).filter(Boolean)))
+  localStorage.setItem(LS_DECKS_KEY, JSON.stringify(unique))
+}
+
 function makeId(card: Partial<Flashcard>): string {
   if (card.id) return card.id
   if (card.questionId != null && card.expectedAnswer) {
@@ -62,6 +83,7 @@ export function addOrUpdateFlashcard(input: Partial<Flashcard>) {
   const id = makeId(input)
   const now = safeNowISO()
   const idx = list.findIndex(x => x.id === id)
+  const cardDeckName = (input.deckName || DEFAULT_DECKS[0]).trim()
 
   if (idx >= 0) {
     const cur = list[idx]
@@ -73,6 +95,7 @@ export function addOrUpdateFlashcard(input: Partial<Flashcard>) {
       timesSeen: (cur.timesSeen || 0) + 1,
       userLastAnswer: input.userLastAnswer ?? cur.userLastAnswer,
       errors: input.errors ?? cur.errors,
+      deckName: cardDeckName || cur.deckName
     }
   } else {
     list.unshift({
@@ -93,9 +116,13 @@ export function addOrUpdateFlashcard(input: Partial<Flashcard>) {
       deck: 1,
       ease: 2.3,
       nextReviewAt: now,
+      deckName: cardDeckName || DEFAULT_DECKS[0]
     })
   }
   saveFlashcards(list.slice(0, 500))
+  if (cardDeckName) {
+    addDeckName(cardDeckName)
+  }
 }
 
 export function addCustomFlashcard(data: {
@@ -103,8 +130,9 @@ export function addCustomFlashcard(data: {
   expectedAnswer: string
   language?: 'zh-CN' | 'zh-TW' | 'en' | 'auto'
   pinyin?: string
+  deckName?: string
 }) {
-  addOrUpdateFlashcard({ ...data, custom: true })
+  addOrUpdateFlashcard({ ...data, custom: true, deckName: data.deckName })
 }
 
 export function removeFlashcardById(id: string) {
@@ -147,4 +175,16 @@ export function loadDueFlashcards(now = new Date()): Flashcard[] {
   return loadFlashcards()
     .filter(c => !c.nextReviewAt || c.nextReviewAt <= ts)
     .sort((a, b) => (a.nextReviewAt || '').localeCompare(b.nextReviewAt || ''))
+}
+
+export function getDeckNames(): string[] {
+  return loadDeckNames()
+}
+
+export function addDeckName(name: string) {
+  const clean = name.trim()
+  if (!clean) return
+  const current = loadDeckNames()
+  if (current.includes(clean)) return
+  saveDeckNames([...current, clean])
 }

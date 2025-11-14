@@ -20,6 +20,7 @@ import { LessonReportDisplay, type LessonReport } from '../../components/report'
 import { SuggestionsDisplay } from '../../components/report/SuggestionsDisplay'
 import type { MispronouncedEntry, Suggestions } from '../../components/report/types'
 import { API_BASE } from '../../config'
+import { addOrUpdateFlashcard, getDeckNames as getFlashcardDecks, addDeckName as registerFlashcardDeck } from '../../flashcards/utils/flashcards'
 import { AppButton } from '@/components/ui/AppButton'
 import { BookmarkPlus } from 'lucide-react'
 
@@ -923,6 +924,10 @@ export default function LessonPage() {
   const [needsManualPlay, setNeedsManualPlay] = useState(false)
   const [currentCaption, setCurrentCaption] = useState('')
   const [isVideoPlaying, setIsVideoPlaying] = useState(false)
+  const [availableDecks, setAvailableDecks] = useState<string[]>([])
+  const [selectedDeck, setSelectedDeck] = useState('')
+  const [isDeckInputOpen, setIsDeckInputOpen] = useState(false)
+  const [newDeckName, setNewDeckName] = useState('')
   const [flashcardStatus, setFlashcardStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
   
   // 反饋狀態 - 作為 session 的一部分
@@ -986,6 +991,14 @@ export default function LessonPage() {
     }
     loadLesson()
   }, [lessonId])
+
+  useEffect(() => {
+    const decks = getFlashcardDecks()
+    setAvailableDecks(decks)
+    if (decks.length) {
+      setSelectedDeck(decks[0])
+    }
+  }, [])
 
   useEffect(() => {
     return () => {
@@ -1643,7 +1656,6 @@ export default function LessonPage() {
         // 🆕 失敗題目加入單字卡（去重）
         try {
           if (!passed) {
-            const { addOrUpdateFlashcard } = await import('../../flashcards/utils/flashcards')
             addOrUpdateFlashcard({
               questionId: currentStep.id,
               lessonId: lessonId,
@@ -1651,8 +1663,10 @@ export default function LessonPage() {
               expectedAnswer: Array.isArray(currentStep.expected_answer) ? String(currentStep.expected_answer[0]) : String(currentStep.expected_answer),
               pinyin: currentStep.pinyin,
               userLastAnswer: rawTranscript,
-              errors: bestMatch.errors || []
+              errors: bestMatch.errors || [],
+              deckName: 'Course Mistakes'
             })
+            registerFlashcardDeck('Course Mistakes')
           }
         } catch (e) {
           console.warn('Add to flashcards failed:', e)
@@ -1961,6 +1975,17 @@ export default function LessonPage() {
     }
   }
 
+  const handleCreateDeck = () => {
+    const clean = newDeckName.trim()
+    if (!clean) return
+    registerFlashcardDeck(clean)
+    const decks = getFlashcardDecks()
+    setAvailableDecks(decks)
+    setSelectedDeck(clean)
+    setNewDeckName('')
+    setIsDeckInputOpen(false)
+  }
+
   const handleSaveFlashcard = async () => {
     if (!lesson) return
     const targetStep = lesson.steps[currentStepIndex]
@@ -1968,7 +1993,6 @@ export default function LessonPage() {
 
     setFlashcardStatus('saving')
     try {
-      const { addOrUpdateFlashcard } = await import('../../flashcards/utils/flashcards')
       addOrUpdateFlashcard({
         questionId: targetStep.id,
         lessonId: lesson.lesson_id || lessonId,
@@ -1977,8 +2001,13 @@ export default function LessonPage() {
           ? String(targetStep.expected_answer[0])
           : String(targetStep.expected_answer),
         pinyin: targetStep.pinyin,
-        custom: true
+        custom: true,
+        deckName: selectedDeck || 'General'
       })
+      if (selectedDeck && !availableDecks.includes(selectedDeck)) {
+        registerFlashcardDeck(selectedDeck)
+        setAvailableDecks(getFlashcardDecks())
+      }
       setFlashcardStatus('saved')
     } catch (error) {
       console.error('Manual flashcard save failed:', error)
@@ -2519,7 +2548,7 @@ export default function LessonPage() {
       </div>
 
       {currentStep && (
-        <div className="w-full max-w-2xl mb-6 p-6 bg-white rounded-xl shadow-lg">
+        <div className="w-full max-w-2xl mb-6 p-6 bg-white rounded-xl shadow-lg space-y-4">
           <div className="space-y-3">
             <div className="flex items-start gap-3">
               <span className="text-blue-600 font-semibold text-sm min-w-[100px]">Pinyin:</span>
@@ -2532,11 +2561,113 @@ export default function LessonPage() {
               <span className="text-gray-700 flex-1">{currentStep.english_hint}</span>
             </div>
           </div>
+          <div className="border-t border-slate-100 pt-4 space-y-3">
+            <label className="text-sm font-semibold text-slate-600">Save to Deck</label>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+              <select
+                value={selectedDeck}
+                onChange={(e) => setSelectedDeck(e.target.value)}
+                className="flex-1 rounded-xl border border-slate-200 px-4 py-2 text-sm text-slate-700 focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-100"
+              >
+                {(availableDecks.length ? availableDecks : ['General']).map((deck) => (
+                  <option key={deck} value={deck}>
+                    {deck}
+                  </option>
+                ))}
+              </select>
+              <button
+                type="button"
+                onClick={() => setIsDeckInputOpen((prev) => !prev)}
+                className="text-sm text-blue-600 font-semibold hover:underline"
+              >
+                {isDeckInputOpen ? 'Close' : 'New Deck'}
+              </button>
+            </div>
+            {isDeckInputOpen && (
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                <input
+                  value={newDeckName}
+                  onChange={(e) => setNewDeckName(e.target.value)}
+                  className="flex-1 rounded-xl border border-slate-200 px-4 py-2 text-sm text-slate-700 focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-100"
+                  placeholder="Deck name"
+                />
+                <AppButton
+                  className="max-w-none w-auto px-4"
+                  onClick={handleCreateDeck}
+                >
+                  Save Deck
+                </AppButton>
+              </div>
+            )}
+          </div>
         </div>
       )}
 
       {currentStep && (
         <div className="w-full max-w-2xl mb-6">
+          {/* 卡疊選擇器 */}
+          <div className="mb-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+            <label className="block text-sm font-semibold text-slate-700 mb-2">
+              Choose Deck
+            </label>
+            <select
+              value={selectedDeck}
+              onChange={(e) => setSelectedDeck(e.target.value)}
+              className="w-full rounded-xl border border-slate-200 px-4 py-2 text-sm text-slate-700 focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-100"
+            >
+              {availableDecks.map((deck) => (
+                <option key={deck} value={deck}>
+                  {deck}
+                </option>
+              ))}
+            </select>
+
+            {/* 新增卡疊表單 */}
+            <div className="mt-3">
+              {isDeckInputOpen ? (
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                  <input
+                    value={newDeckName}
+                    onChange={(e) => setNewDeckName(e.target.value)}
+                    onKeyPress={(e) => {
+                      if (e.key === 'Enter') handleCreateDeck()
+                    }}
+                    className="flex-1 rounded-xl border border-slate-200 px-4 py-2 text-sm text-slate-700 focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-100"
+                    placeholder="Enter new deck name"
+                    autoFocus
+                  />
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={handleCreateDeck}
+                      className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-lg transition hover:bg-blue-700"
+                    >
+                      Create
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsDeckInputOpen(false)
+                        setNewDeckName('')
+                      }}
+                      className="rounded-xl border border-slate-200 px-4 py-2 text-sm text-slate-600 hover:bg-slate-50"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setIsDeckInputOpen(true)}
+                  className="text-sm text-blue-600 font-semibold hover:underline"
+                >
+                  + New Deck
+                </button>
+              )}
+            </div>
+          </div>
+
           <AppButton
             icon={BookmarkPlus}
             onClick={handleSaveFlashcard}
@@ -2546,7 +2677,9 @@ export default function LessonPage() {
             {flashcardStatus === 'saving' ? 'Saving to Flashcards...' : 'Save to Flashcards'}
           </AppButton>
           {flashcardStatus === 'saved' && (
-            <p className="text-center text-sm text-green-600 mt-2">Added to Flashcards.</p>
+            <p className="text-center text-sm text-green-600 mt-2">
+              Added to &quot;{selectedDeck || 'General'}&quot; deck.
+            </p>
           )}
           {flashcardStatus === 'error' && (
             <p className="text-center text-sm text-red-500 mt-2">

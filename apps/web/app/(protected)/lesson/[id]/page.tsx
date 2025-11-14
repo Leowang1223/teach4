@@ -2643,69 +2643,6 @@ export default function LessonPage() {
             </>
           ) : (
             <>
-              {/* 卡疊選擇器 */}
-              <div className="mb-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-                <label className="block text-sm font-semibold text-slate-700 mb-2">
-                  Choose Deck
-                </label>
-                <select
-                  value={selectedDeck}
-                  onChange={(e) => setSelectedDeck(e.target.value)}
-                  className="w-full rounded-xl border border-slate-200 px-4 py-2 text-sm text-slate-700 focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-100"
-                >
-                  {availableDecks.map((deck) => (
-                    <option key={deck} value={deck}>
-                      {deck}
-                    </option>
-                  ))}
-                </select>
-
-                {/* 新增卡疊表單 */}
-                <div className="mt-3">
-                  {isDeckInputOpen ? (
-                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                      <input
-                        value={newDeckName}
-                        onChange={(e) => setNewDeckName(e.target.value)}
-                        onKeyPress={(e) => {
-                          if (e.key === 'Enter') handleCreateDeck()
-                        }}
-                        className="flex-1 rounded-xl border border-slate-200 px-4 py-2 text-sm text-slate-700 focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-100"
-                        placeholder="Enter new deck name"
-                        autoFocus
-                      />
-                      <div className="flex gap-2">
-                        <button
-                          type="button"
-                          onClick={handleCreateDeck}
-                          className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-lg transition hover:bg-blue-700"
-                        >
-                          Create
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setIsDeckInputOpen(false)
-                            setNewDeckName('')
-                          }}
-                          className="rounded-xl border border-slate-200 px-4 py-2 text-sm text-slate-600 hover:bg-slate-50"
-                        >
-                          Cancel
-                        </button>
-                      </div>
-                    </div>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => setIsDeckInputOpen(true)}
-                      className="text-sm text-blue-600 font-semibold hover:underline"
-                    >
-                      + New Deck
-                    </button>
-                  )}
-                </div>
-              </div>
-
               {/* 確認和取消按鈕 */}
               <div className="flex gap-3">
                 <AppButton

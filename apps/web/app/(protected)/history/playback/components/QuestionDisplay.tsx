@@ -4,6 +4,8 @@
  */
 
 import { TTSService } from '../services/ttsService'
+import { AppButton } from '@/components/ui/AppButton'
+import { Volume2 } from 'lucide-react'
 
 interface QuestionDisplayProps {
   questionText: string

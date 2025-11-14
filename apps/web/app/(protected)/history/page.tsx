@@ -354,14 +354,14 @@ export default function HistoryPage() {
                     </div>
                   </div>
 
-                  <div className="flex gap-2">
+                  <div className="flex flex-col gap-2">
                     <AppButton
                       icon={RefreshCw}
                       onClick={(e) => {
                         e.stopPropagation()
                         router.push(`/lesson/${session.lessonId}`)
                       }}
-                      className="flex-1 max-w-none w-auto px-4 py-2 text-xs"
+                      className="max-w-none w-full"
                     >
                       Retry
                     </AppButton>
@@ -372,7 +372,7 @@ export default function HistoryPage() {
                         e.stopPropagation()
                         deleteSession(session.sessionId)
                       }}
-                      className="max-w-none w-auto px-4 py-2 text-xs"
+                      className="max-w-none w-full"
                     >
                       Delete
                     </AppButton>

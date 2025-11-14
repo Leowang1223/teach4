@@ -10,6 +10,7 @@
     "test": "echo 'No tests configured for frontend'"
   },
   "dependencies": {
+    "@heroicons/react": "^2.2.0",
     "@interview-plus/shared": "file:../shared",
     "@types/multer": "^2.0.0",
     "@types/react-dom": "^18",

@@ -20,6 +20,8 @@ import { LessonReportDisplay, type LessonReport } from '../../components/report'
 import { SuggestionsDisplay } from '../../components/report/SuggestionsDisplay'
 import type { MispronouncedEntry, Suggestions } from '../../components/report/types'
 import { API_BASE } from '../../config'
+import { AppButton } from '@/components/ui/AppButton'
+import { BookmarkPlus } from 'lucide-react'
 
 // 🔧 字串相似度計算工具（Levenshtein Distance）
 function normalizeText(text: string): string {
@@ -921,6 +923,7 @@ export default function LessonPage() {
   const [needsManualPlay, setNeedsManualPlay] = useState(false)
   const [currentCaption, setCurrentCaption] = useState('')
   const [isVideoPlaying, setIsVideoPlaying] = useState(false)
+  const [flashcardStatus, setFlashcardStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
   
   // 反饋狀態 - 作為 session 的一部分
   const [sessionState, setSessionState] = useState<'question' | 'feedback'>('question')
@@ -935,7 +938,8 @@ export default function LessonPage() {
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
   const audioChunksRef = useRef<Blob[]>([])
   const videoRef = useRef<HTMLVideoElement>(null)
-  const hasAutoplayedForStep = useRef<string>('') // 記錄已自動播放的步驟
+  const hasAutoplayedForStep = useRef<string>('') // �O���w�۰ʼ��񪺨B�J
+  const flashcardStatusTimeout = useRef<number | null>(null)
 
   // 🔧 修復：過濾掉括號內的拼音
   const removePinyin = (text: string): string => {
@@ -982,6 +986,14 @@ export default function LessonPage() {
     }
     loadLesson()
   }, [lessonId])
+
+  useEffect(() => {
+    return () => {
+      if (flashcardStatusTimeout.current) {
+        window.clearTimeout(flashcardStatusTimeout.current)
+      }
+    }
+  }, [])
 
   // 🔧 修復：分離中文和英文，使用不同的 TTS，保持順序
   const playTTS = (text: string) => {
@@ -1949,6 +1961,39 @@ export default function LessonPage() {
     }
   }
 
+  const handleSaveFlashcard = async () => {
+    if (!lesson) return
+    const targetStep = lesson.steps[currentStepIndex]
+    if (!targetStep) return
+
+    setFlashcardStatus('saving')
+    try {
+      const { addOrUpdateFlashcard } = await import('../../flashcards/utils/flashcards')
+      addOrUpdateFlashcard({
+        questionId: targetStep.id,
+        lessonId: lesson.lesson_id || lessonId,
+        prompt: targetStep.teacher,
+        expectedAnswer: Array.isArray(targetStep.expected_answer)
+          ? String(targetStep.expected_answer[0])
+          : String(targetStep.expected_answer),
+        pinyin: targetStep.pinyin,
+        custom: true
+      })
+      setFlashcardStatus('saved')
+    } catch (error) {
+      console.error('Manual flashcard save failed:', error)
+      setFlashcardStatus('error')
+    } finally {
+      if (flashcardStatusTimeout.current) {
+        window.clearTimeout(flashcardStatusTimeout.current)
+      }
+      flashcardStatusTimeout.current = window.setTimeout(
+        () => setFlashcardStatus('idle'),
+        2200
+      )
+    }
+  }
+
   const handleRecording = () => {
     if (isRecording) {
       stopRecording()
@@ -2490,6 +2535,27 @@ export default function LessonPage() {
         </div>
       )}
 
+      {currentStep && (
+        <div className="w-full max-w-2xl mb-6">
+          <AppButton
+            icon={BookmarkPlus}
+            onClick={handleSaveFlashcard}
+            disabled={flashcardStatus === 'saving'}
+            className="max-w-none w-full"
+          >
+            {flashcardStatus === 'saving' ? 'Saving to Flashcards...' : 'Save to Flashcards'}
+          </AppButton>
+          {flashcardStatus === 'saved' && (
+            <p className="text-center text-sm text-green-600 mt-2">Added to Flashcards.</p>
+          )}
+          {flashcardStatus === 'error' && (
+            <p className="text-center text-sm text-red-500 mt-2">
+              Failed to save. Please try again.
+            </p>
+          )}
+        </div>
+      )}
+
       <button
         onClick={handleRecording}
         className={`w-20 h-20 rounded-full flex items-center justify-center transition-all shadow-lg transform hover:scale-110 ${
@@ -2520,5 +2586,6 @@ export default function LessonPage() {
     </div>
   )
 }
+
 
 

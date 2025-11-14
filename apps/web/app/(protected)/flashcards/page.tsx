@@ -1,285 +1,465 @@
+﻿'use client'
 
-'use client'
+import { useEffect, useState } from 'react'
+import {
+  AnimatePresence,
+  motion,
+  useMotionValue,
+  useTransform,
+  type PanInfo,
+  type Transition,
+} from 'framer-motion'
+import { PlusIcon, SpeakerWaveIcon } from '@heroicons/react/24/outline'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { loadAllFlashcards, loadDueFlashcards, addCustomFlashcard, markFlashcardResult, removeFlashcardById, type Flashcard } from './utils/flashcards'
-import { useAudioRecorder } from '../history/playback/hooks/useAudioRecorder'
+import {
+  addCustomFlashcard,
+  loadAllFlashcards as loadLocalFlashcards,
+  type Flashcard as LocalFlashcard,
+} from './utils/flashcards'
+import {
+  loadAllFlashcards as loadRemoteFlashcards,
+  type Flashcard as RemoteFlashcard,
+} from '@/utils/flashcards'
 import { TTSService } from '../history/playback/services/ttsService'
-import { ScoringService } from '../history/playback/services/scoringService'
+import { AppButton } from '@/components/ui/AppButton'
+import { useRouter } from 'next/navigation'
+
+import styles from './flashcard.module.css'
+
+type CardSource = 'course-mistake' | 'practice-saved' | 'custom' | 'api'
+
+interface DeckCard {
+  id: string
+  front: string
+  pinyin?: string
+  back: string
+  source: CardSource
+  createdAt: number
+  metadata?: {
+    courseId?: string
+    questionIndex?: number
+  }
+}
+
+const flipTransition: Transition = { duration: 0.6, ease: 'easeInOut' }
+const dragThreshold = 140
 
 export default function FlashcardsPage() {
-  const [useDueOnly, setUseDueOnly] = useState(true)
-  const [cards, setCards] = useState<Flashcard[]>([])
-  const [idx, setIdx] = useState(0)
-  const [showAnswer, setShowAnswer] = useState(false)
-  const [showPinyin, setShowPinyin] = useState(false)
-  const [checking, setChecking] = useState(false)
-  const [lastCheck, setLastCheck] = useState<{ passed?: boolean; transcript?: string; message?: string }>()
+  const [allCards, setAllCards] = useState<DeckCard[]>([])
+  const [cards, setCards] = useState<DeckCard[]>([])
+  const [currentIndex, setCurrentIndex] = useState(0)
+  const [isFlipped, setIsFlipped] = useState(false)
 
-  // keep original recorder API
-  const { isRecording, isPlaying, audioBlob, startRecording, stopRecording } = useAudioRecorder()
-  const scoringGuardRef = useRef(false)
-  const [recSec, setRecSec] = useState(0)
-  const timerRef = useRef<number | null>(null)
+  const [isFormOpen, setIsFormOpen] = useState(false)
+  const [formValues, setFormValues] = useState({ hanzi: '', pinyin: '', english: '' })
 
-  const visible = useMemo(() => (useDueOnly ? loadDueFlashcards() : loadAllFlashcards()), [useDueOnly])
+  const [isLoading, setIsLoading] = useState(true)
+  const [activeDeck, setActiveDeck] = useState<'all' | CardSource>('all')
+
+  const router = useRouter()
+
+  const x = useMotionValue(0)
+  const rotateZ = useTransform(x, [-180, 0, 180], [8, 0, -8])
+
+  const activeCard = cards[currentIndex]
 
   useEffect(() => {
-    setCards(visible)
-    setIdx(0)
-  }, [visible])
-
-  // progress
-  const card = cards[idx]
-  const total = cards.length
-  const progressPct = total ? Math.round(((idx + 1) / total) * 100) : 0
-
-  // auto-score when recording stops
-  useEffect(() => {
-    const run = async () => {
-      if (!card || !audioBlob || isRecording || checking || scoringGuardRef.current) return
-      scoringGuardRef.current = true
-      setChecking(true)
-      try {
-        const attempt = await ScoringService.submitForScoring({
-          audioBlob,
-          lessonId: String(card.lessonId || 'flashcards'),
-          stepId: typeof card.questionId === 'number' ? card.questionId : idx,
-          expectedAnswer: card.expectedAnswer
-        })
-        setLastCheck({ passed: (attempt.score ?? 0) >= 75, transcript: attempt.transcript })
-      } catch (e: any) {
-        setLastCheck({ message: e?.message || 'scoring error' })
-      } finally {
-        setChecking(false)
-        scoringGuardRef.current = false
-      }
-    }
-    run()
+    refreshCards().catch(() => null)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [audioBlob, isRecording])
+  }, [])
 
-  // recording timer for aria-live feedback
   useEffect(() => {
-    if (isRecording) {
-      setRecSec(0)
-      timerRef.current = window.setInterval(() => setRecSec(s => s + 1), 1000)
-    } else if (timerRef.current) {
-      window.clearInterval(timerRef.current)
-      timerRef.current = null
+    x.set(0)
+    setIsFlipped(false)
+  }, [currentIndex, x])
+
+  async function refreshCards() {
+    setIsLoading(true)
+    try {
+      const [remote, local] = await Promise.all([
+        loadRemoteFlashcards().catch<RemoteFlashcard[]>(() => []),
+        Promise.resolve(loadLocalFlashcards()),
+      ])
+
+      const mapped: DeckCard[] = [...remote.map(mapRemoteCard), ...local.map(mapLocalCard)]
+      mapped.sort((a, b) => b.createdAt - a.createdAt)
+
+      setAllCards(mapped)
+      applyDeckFilter(mapped, activeDeck)
+    } finally {
+      setIsLoading(false)
     }
-    return () => {
-      if (timerRef.current) {
-        window.clearInterval(timerRef.current)
-        timerRef.current = null
-      }
+  }
+
+  function applyDeckFilter(list: DeckCard[], deck: 'all' | CardSource) {
+    const filtered = deck === 'all' ? list : list.filter(card => card.source === deck)
+    setCards(filtered)
+    setCurrentIndex(0)
+    setIsFlipped(false)
+  }
+
+  function mapRemoteCard(card: RemoteFlashcard): DeckCard {
+    const createdAt = card.createdAt instanceof Date ? card.createdAt.getTime() : Date.now()
+    const source: CardSource = card.metadata?.source === 'course' ? 'course-mistake' : 'api'
+    return {
+      id: `api-${card.id}`,
+      front: card.front ?? '',
+      back: card.back ?? '',
+      pinyin: undefined,
+      source,
+      createdAt,
+      metadata: card.metadata,
     }
-  }, [isRecording])
-
-  function reload() {
-    const list = useDueOnly ? loadDueFlashcards() : loadAllFlashcards()
-    setCards(list)
-    if (idx >= list.length) setIdx(Math.max(0, list.length - 1))
   }
 
-  function nextCard() {
-    setShowAnswer(false)
-    setShowPinyin(false)
-    setLastCheck(undefined)
-    setIdx(i => (i + 1) % Math.max(1, cards.length))
-    reload()
+  function mapLocalCard(card: LocalFlashcard): DeckCard {
+    const createdAt = card.createdAt ? new Date(card.createdAt).getTime() : Date.now()
+    const source: CardSource = card.custom ? 'custom' : 'practice-saved'
+    return {
+      id: `local-${card.id}`,
+      front: card.prompt || '',
+      back: card.expectedAnswer || '',
+      pinyin: card.pinyin,
+      source,
+      createdAt,
+      metadata: {
+        courseId: card.lessonId?.toString(),
+        questionIndex: typeof card.questionId === 'number' ? card.questionId : undefined,
+      },
+    }
   }
 
-  function handleResult(correct: boolean) {
-    if (!card) return
-    markFlashcardResult(card.id, correct)
-    reload()
-    nextCard()
+  function handleSwipe(direction: number) {
+    if (!cards.length) return
+    x.stop()
+    x.set(0)
+    setIsFlipped(false)
+    setCurrentIndex((prev) => {
+      const total = cards.length
+      return (prev + direction + total) % total
+    })
   }
 
-  function handleRemove() {
-    if (!card) return
-    removeFlashcardById(card.id)
-    reload()
+  function handleDragEnd(_: unknown, info: PanInfo) {
+    const offsetX = info?.offset?.x ?? 0
+    if (offsetX > dragThreshold) {
+      handleSwipe(-1)
+      return
+    }
+    if (offsetX < -dragThreshold) {
+      handleSwipe(1)
+      return
+    }
+  }
+
+  function handleFlip() {
+    if (!activeCard) return
+    setIsFlipped((p) => !p)
+  }
+
+  function handlePrev() {
+    handleSwipe(-1)
+  }
+
+  function handleNext() {
+    handleSwipe(1)
+  }
+
+  function handlePlayAudio(card: DeckCard) {
+    if (!card.front) return
+    TTSService.playText(card.front)
+  }
+
+  function handleFormSubmit() {
+    if (!formValues.hanzi.trim() || !formValues.english.trim()) return
+    addCustomFlashcard({
+      prompt: formValues.hanzi.trim(),
+      expectedAnswer: formValues.english.trim(),
+      pinyin: formValues.pinyin.trim() || undefined,
+    })
+    setFormValues({ hanzi: '', pinyin: '', english: '' })
+    setIsFormOpen(false)
+    refreshCards().catch(() => null)
+  }
+
+  if (isLoading && cards.length === 0) {
+    return (
+      <div className="flex min-h-[70vh] w-full items-center justify-center bg-gradient-to-br from-[#f7faff] via-white to-[#eef3ff]">
+        <div className="text-slate-500">Loading cards...</div>
+      </div>
+    )
   }
 
   return (
-    <div className="min-h-screen bg-slate-50">
-      <div className="max-w-5xl mx-auto px-4 py-8 space-y-8">
-        {/* Builder 放在頂部 */}
-        <AddCustomCard onAdded={reload} />
+    <div className="flex min-h-screen w-full items-center justify-center bg-gradient-to-br from-[#f4f7ff] via-white to-[#eef1fb] py-12 px-4">
+      <div className="w-full max-w-4xl rounded-[40px] border border-white/70 bg-white/90 p-10 shadow-[0_40px_80px_rgba(15,23,42,0.08)] backdrop-blur-xl">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <p className="text-sm uppercase tracking-[0.25em] text-slate-400">Practice Deck</p>
+            <h1 className="text-3xl font-bold text-slate-900 mt-2">Flashcards</h1>
+          </div>
+          <AppButton
+            className="max-w-none w-auto px-5"
+            onClick={() => router.push('/dashboard')}
+          >
+            Back to Dashboard
+          </AppButton>
+        </div>
 
-        {/* main card */}
-        {!cards.length ? (
-          <section className="rounded-2xl shadow-md p-6 bg-white text-slate-600">No cards to review. Wrong items or custom items will appear here.</section>
-        ) : (
-          <section className="rounded-2xl shadow-md p-6 bg-white space-y-5">
-            {/* Top: progress and index */}
-            <header className="flex items-center justify-between">
-              <p className="text-sm text-slate-600">Card <b>{Math.min(idx + 1, total)}</b> / {total || 0}</p>
-              <div className="w-32 h-1 bg-slate-100 rounded-full overflow-hidden" aria-hidden>
-                <div className="h-full bg-blue-600" style={{ width: `${progressPct}%` }} />
-              </div>
-            </header>
+        {/* Add New Card strip */}
+        <button
+          type="button"
+          onClick={() => setIsFormOpen((prev) => !prev)}
+          className="mt-6 flex w-full items-center justify-between rounded-[28px] border border-slate-100 bg-white px-5 py-4 text-left text-slate-700 shadow-inner transition hover:shadow-lg"
+        >
+          <span className="text-base font-semibold">Add New Card</span>
+          <PlusIcon className={`h-5 w-5 transition-transform ${isFormOpen ? 'rotate-45' : ''}`} />
+        </button>
 
-            {/* Main copy */}
-            <div className="space-y-1">
-              <h2 className="text-lg font-semibold text-slate-900">{card.prompt}</h2>
-              <p className="text-sm text-slate-600">
-                For example: <span className="font-medium">{card.expectedAnswer}</span>
-              </p>
-              {card.pinyin && <p className="text-sm text-slate-700">{card.pinyin}</p>}
-            </div>
-
-            {/* Controls row: Play → Record → Reveal ; right Skip/Remove（允許手機折行） */}
-            <div className="flex flex-wrap items-center gap-3">
+        {/* Deck selector */}
+        <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {deckOptions.map(option => {
+            const count = option.key === 'all'
+              ? allCards.length
+              : allCards.filter(card => card.source === option.key).length
+            const isActive = activeDeck === option.key
+            return (
               <button
-                data-testid="btn-play"
-                onClick={() => TTSService.playText(card.expectedAnswer)}
-                className="h-10 px-4 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-900"
-                aria-label="Play audio"
+                key={option.key}
+                type="button"
+                onClick={() => {
+                  setActiveDeck(option.key)
+                  applyDeckFilter(allCards, option.key)
+                }}
+                className={`rounded-2xl border px-4 py-3 text-left shadow-sm transition ${
+                  isActive
+                    ? 'border-blue-200 bg-blue-50 text-blue-700'
+                    : 'border-slate-200 bg-white text-slate-600 hover:border-blue-100'
+                }`}
               >
-                ▶ Play
+                <p className="text-sm font-semibold">{option.label}</p>
+                <p className="text-xs opacity-70">{count} cards</p>
               </button>
+            )
+          })}
+        </div>
 
-              <button
-                data-testid="btn-record"
-                onMouseDown={startRecording}
-                onMouseUp={stopRecording}
-                onTouchStart={startRecording}
-                onTouchEnd={stopRecording}
-                aria-pressed={isRecording}
-                className={`h-10 px-4 rounded-2xl text-white ${isRecording ? 'bg-red-600 animate-pulse' : 'bg-blue-600 hover:bg-blue-700'}`}
-              >
-                🎙 Record
-              </button>
-
-              <button
-                data-testid="btn-reveal"
-                onClick={() => setShowAnswer(s => !s)}
-                className="h-10 px-4 rounded-2xl bg-slate-100 hover:bg-slate-200"
-                aria-label={showAnswer ? 'Hide answer' : 'Reveal answer'}
-              >
-                Reveal
-              </button>
-
-              {/* 手機尺寸時換到第二列並靠右 */}
-              <div className="ml-auto sm:ml-auto w-full sm:w-auto flex gap-1 justify-end sm:justify-start">
-                <button
-                  data-testid="btn-skip"
-                  onClick={nextCard}
-                  className="h-10 px-3 rounded-2xl text-slate-600 hover:bg-slate-100"
-                  aria-label="Skip card"
-                >
-                  Skip
-                </button>
-                <button
-                  data-testid="btn-remove"
-                  onClick={handleRemove}
-                  className="h-10 px-3 rounded-2xl text-slate-600 hover:bg-slate-100"
-                  aria-label="Remove card"
-                >
-                  Remove
-                </button>
-              </div>
-            </div>
-
-            {/* Banner state */}
-            {(isRecording || checking || lastCheck) && (
-              <div
-                className={`rounded-xl px-3 py-2 text-sm ${lastCheck?.passed ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-800'}`}
-                aria-live="assertive"
-              >
-                {isRecording
-                  ? `Recording… ${String(Math.floor(recSec / 60)).padStart(2, '0')}:${String(recSec % 60).padStart(2, '0')}`
-                  : checking
-                    ? 'Scoring…'
-                    : lastCheck?.passed
-                      ? 'Great! Mark your result below.'
-                      : 'Need more practice'}
-              </div>
-            )}
-
-            {/* Reveal panel */}
-            {showAnswer && (
-              <div className="space-y-1">
-                <div className="text-sm text-slate-600">Expected</div>
-                <div className="text-slate-900">
-                  <mark className="px-1 rounded">{card.expectedAnswer}</mark>
+        <AnimatePresence initial={false}>
+          {isFormOpen && (
+            <motion.div
+              key="card-form"
+              initial={{ height: 0, opacity: 0, marginTop: 0 }}
+              animate={{ height: 'auto', opacity: 1, marginTop: 16 }}
+              exit={{ height: 0, opacity: 0, marginTop: 0 }}
+              transition={{ duration: 0.3, ease: [0.42, 0, 0.58, 1] }}
+              className="overflow-hidden"
+            >
+              <div className="rounded-2xl bg-white p-6 shadow-inner">
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                  <label className="flex flex-col gap-2 text-sm text-slate-600">
+                    <span>中文</span>
+                    <input
+                      value={formValues.hanzi}
+                      onChange={(e) => setFormValues((v) => ({ ...v, hanzi: e.target.value }))}
+                      className="rounded-xl border border-slate-200 px-4 py-3 text-slate-800 shadow-sm focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-100"
+                      placeholder="例如：你好"
+                    />
+                  </label>
+                  <label className="flex flex-col gap-2 text-sm text-slate-600">
+                    <span>中文拼音</span>
+                    <input
+                      value={formValues.pinyin}
+                      onChange={(e) => setFormValues((v) => ({ ...v, pinyin: e.target.value }))}
+                      className="rounded-xl border border-slate-200 px-4 py-3 text-slate-800 shadow-sm focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-100"
+                      placeholder="例如：nǐ hǎo"
+                    />
+                  </label>
+                  <label className="flex flex-col gap-2 text-sm text-slate-600">
+                    <span>英文意思</span>
+                    <input
+                      value={formValues.english}
+                      onChange={(e) => setFormValues((v) => ({ ...v, english: e.target.value }))}
+                      className="rounded-xl border border-slate-200 px-4 py-3 text-slate-800 shadow-sm focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-100"
+                      placeholder="例如：Hello"
+                    />
+                  </label>
                 </div>
-                {card.userLastAnswer && (
-                  <div className="text-sm text-slate-600">You said: {card.userLastAnswer}</div>
-                )}
+                <div className="mt-6 flex justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsFormOpen(false)}
+                    className="rounded-xl border border-slate-200 px-5 py-3 text-sm text-slate-700 hover:bg-slate-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleFormSubmit}
+                    className="rounded-xl bg-blue-600 px-6 py-3 text-sm font-semibold text-white shadow-lg transition hover:bg-blue-700"
+                  >
+                    Add
+                  </button>
+                </div>
               </div>
-            )}
+            </motion.div>
+          )}
+        </AnimatePresence>
 
-            {/* 評分列：Again / Hard / Good / Easy（淺藍系列） */}
-            <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
-              <button className="h-10 w-full rounded-xl bg-blue-50 hover:bg-blue-100 text-slate-900" onClick={() => handleResult(false)} aria-label="Rate again">Again</button>
-              <button className="h-10 w-full rounded-xl bg-blue-50 hover:bg-blue-100 text-slate-900" onClick={() => handleResult(false)} aria-label="Rate hard">Hard</button>
-              <button className="h-10 w-full rounded-xl bg-blue-50 hover:bg-blue-100 text-slate-900" onClick={() => handleResult(true)} aria-label="Rate good">Good</button>
-              <button className="h-10 w-full rounded-xl bg-blue-50 hover:bg-blue-100 text-slate-900" onClick={() => handleResult(true)} aria-label="Rate easy">Easy</button>
+        {/* Deck + 翻面 UI */}
+        <div className="mt-10 w-full">
+          {activeCard ? (
+            <>
+              <div className="relative mx-auto h-[420px] max-w-2xl rounded-[32px] bg-gradient-to-b from-slate-50 to-slate-100">
+                {/* Tilt → Perspective → Flipper */}
+                <div className={styles.center}>
+                  <motion.div
+                    drag="x"
+                    dragConstraints={{ left: 0, right: 0 }}
+                    dragElastic={0.22}
+                    style={{ x, rotateZ }}
+                    onDragEnd={handleDragEnd}
+                    whileTap={{ cursor: 'grabbing' }}
+                    className={styles.tilt}
+                  >
+                    <div className={styles.perspective}>
+                      <motion.div
+                        className={styles.flipper}
+                        animate={{ rotateY: isFlipped ? 180 : 0 }}
+                        transition={flipTransition}
+                        onClick={handleFlip}
+                      >
+                        {/* front */}
+                        <div
+                          className={`${styles.face} flex flex-col justify-between bg-white px-10 py-8 text-center`}
+                        >
+                          <div className="flex flex-1 flex-col items-center justify-center gap-4 overflow-hidden">
+                            <p className="break-words text-4xl font-semibold leading-tight text-slate-900">
+                              {activeCard.front}
+                            </p>
+                            {activeCard.pinyin && (
+                              <p className="text-2xl text-slate-500">{activeCard.pinyin}</p>
+                            )}
+                          </div>
+                          <div className="flex items-center justify-between px-1 text-xs uppercase tracking-wider text-slate-400">
+                            <span>{sourceLabel(activeCard.source)}</span>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                handlePlayAudio(activeCard)
+                              }}
+                              className="rounded-full bg-blue-100 p-2 text-blue-600 transition hover:bg-blue-200"
+                              aria-label="Play audio"
+                            >
+                              <SpeakerWaveIcon className="h-5 w-5" />
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* back */}
+                        <div
+                          className={`${styles.face} ${styles.back} flex flex-col items-center justify-center gap-3 bg-gradient-to-br from-blue-50 via-white to-blue-100 px-12 text-center`}
+                        >
+                          <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                            English Meaning
+                          </h3>
+                          <p className="text-3xl font-bold text-slate-800">{activeCard.back}</p>
+                        </div>
+                      </motion.div>
+                    </div>
+                  </motion.div>
+                </div>
+              </div>
+
+              {/* Tips 卡片 */}
+              <div className="mx-auto mt-6 max-w-2xl rounded-[28px] border border-slate-200/70 bg-white/70 p-6 text-sm text-slate-500 shadow-inner">
+                <div className="font-semibold uppercase tracking-wide text-slate-400">Tips</div>
+                <ul className="mt-3 space-y-2 text-slate-500">
+                  <li>- Click the card to flip between Chinese and English.</li>
+                  <li>- Drag left or right to cycle through the deck.</li>
+                  <li>- Use the audio button to hear the pronunciation.</li>
+                </ul>
+              </div>
+            </>
+          ) : (
+            <div className="flex h-72 w-full max-w-2xl flex-col items-center justify-center rounded-[32px] border border-dashed border-slate-300 bg-white/70 text-center text-slate-500">
+              <p>No flashcards ready for review.</p>
+              <p className="mt-2 text-sm">Try adding new cards to begin practicing.</p>
             </div>
+          )}
+        </div>
 
-            {/* Screen-reader live region */}
-            <div className="sr-only" aria-live="assertive" role="status">
-              {isRecording && `Recording ${String(Math.floor(recSec / 60)).padStart(2,'0')}:${String(recSec % 60).padStart(2,'0')}`}
-              {checking && 'Scoring…'}
-              {lastCheck?.passed === true && 'Passed'}
-              {lastCheck?.passed === false && 'Failed'}
-              {lastCheck?.message}
-            </div>
-
-            {/* Tips */}
-            <details className="text-sm text-slate-700">
-              <summary className="cursor-pointer font-medium">Need help?</summary>
-              <ul className="mt-2 list-disc list-inside space-y-1">
-                <li>Use Reveal to see the expected answer.</li>
-                <li>Play to listen and mimic the pronunciation.</li>
-                <li>Mark the result to schedule the next review.</li>
-              </ul>
-            </details>
-          </section>
+        {/* controls */}
+        {activeCard && (
+          <div className="mt-10 flex flex-wrap items-center justify-center gap-4">
+            <button
+              type="button"
+              onClick={handlePrev}
+              className="h-12 rounded-xl border border-blue-300 px-6 text-base font-semibold text-blue-500 transition hover:bg-blue-50"
+            >
+              Prev
+            </button>
+            <button
+              type="button"
+              onClick={handleFlip}
+              className="h-12 rounded-xl bg-blue-600 px-8 text-base font-semibold text-white shadow-lg transition hover:bg-blue-700"
+            >
+              Flip
+            </button>
+            <button
+              type="button"
+              onClick={handleNext}
+              className="h-12 rounded-xl border border-blue-300 px-6 text-base font-semibold text-blue-500 transition hover:bg-blue-50"
+            >
+              Next
+            </button>
+          </div>
         )}
 
-        {/* Due-only filter moved out; keep logic but hide control to match minimalist preview */}
+        {/* sources card */}
+        <div className="mt-10 rounded-2xl bg-white/70 p-5 text-sm text-slate-600 shadow-inner">
+          <div className="font-semibold text-slate-800">Card Sources</div>
+          <ul className="mt-2 grid grid-cols-1 gap-1 sm:grid-cols-2">
+            <li className="flex items-center gap-2">
+              <span className="h-2 w-2 rounded-full bg-blue-500" />
+              Course mistakes saved automatically
+            </li>
+            <li className="flex items-center gap-2">
+              <span className="h-2 w-2 rounded-full bg-indigo-400" />
+              Saved during practice sessions
+            </li>
+            <li className="flex items-center gap-2">
+              <span className="h-2 w-2 rounded-full bg-sky-300" />
+              Custom flashcards you create
+            </li>
+            <li className="flex items-center gap-2">
+              <span className="h-2 w-2 rounded-full bg-slate-300" />
+              Other synced content
+            </li>
+          </ul>
+        </div>
       </div>
     </div>
   )
 }
 
-function AddCustomCard({ onAdded }: { onAdded: () => void }) {
-  const [prompt, setPrompt] = useState('')
-  const [expected, setExpected] = useState('')
-  const [pinyin, setPinyin] = useState('')
-
-  function submit() {
-    if (!prompt.trim() || !expected.trim()) return
-    addCustomFlashcard({ prompt: prompt.trim(), expectedAnswer: expected.trim(), pinyin: pinyin.trim() || undefined })
-    setPrompt(''); setExpected(''); setPinyin('')
-    onAdded()
+function sourceLabel(source: CardSource): string {
+  switch (source) {
+    case 'course-mistake':
+      return 'Course Mistake'
+    case 'practice-saved':
+      return 'Saved from Practice'
+    case 'custom':
+      return 'Custom Card'
+    default:
+      return 'Synced Card'
   }
-
-  return (
-    <section className="rounded-2xl shadow-md p-5 bg-white">
-      <div className="font-medium mb-3 text-slate-900">Add Custom Practice</div>
-      <div className="grid grid-cols-1 sm:grid-cols-12 gap-3">
-        <div className="sm:col-span-5">
-          <label className="block text-xs text-slate-600 mb-1" htmlFor="builder-prompt">Prompt (題目)</label>
-          <input id="builder-prompt" className="h-10 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-600/40 px-3 w-full" placeholder="e.g. To answer, say『我叫 + 你的名字』" value={prompt} onChange={e => setPrompt(e.target.value)} />
-        </div>
-        <div className="sm:col-span-5">
-          <label className="block text-xs text-slate-600 mb-1" htmlFor="builder-expected">Expected answer (正解)</label>
-          <input id="builder-expected" className="h-10 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-600/40 px-3 w-full" placeholder="e.g. 我叫Tom" value={expected} onChange={e => setExpected(e.target.value)} />
-        </div>
-        <div className="sm:col-span-2">
-          <label className="block text-xs text-slate-600 mb-1" htmlFor="builder-pinyin">Pinyin (optional)</label>
-          <input id="builder-pinyin" className="h-10 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-600/40 px-3 w-full" placeholder="e.g. wǒ jiào Tom" value={pinyin} onChange={e => setPinyin(e.target.value)} />
-        </div>
-      </div>
-      <div className="mt-3 flex justify-end">
-        <button className="px-4 h-10 bg-blue-600 text-white rounded-2xl hover:bg-blue-700" onClick={submit} aria-label="Add custom card">Add</button>
-      </div>
-    </section>
-  )
 }
+
+const deckOptions: Array<{ key: 'all' | CardSource; label: string }> = [
+  { key: 'all', label: 'All Cards' },
+  { key: 'course-mistake', label: 'Course Mistakes' },
+  { key: 'practice-saved', label: 'Practice Saved' },
+  { key: 'custom', label: 'Custom Cards' },
+  { key: 'api', label: 'Synced Cards' },
+]

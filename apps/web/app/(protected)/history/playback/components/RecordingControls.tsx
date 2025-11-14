@@ -1,6 +1,9 @@
+﻿import { AppButton } from '@/components/ui/AppButton'
+import { Mic, Play, Square } from 'lucide-react'
+
 /**
- * 錄音控制組件
- * 包含錄音、播放、送出評分等功能
+ * ??批蝯辣
+ * ????整閰?蝑???
  */
 
 interface RecordingControlsProps {
@@ -24,40 +27,36 @@ export function RecordingControls({
 }: RecordingControlsProps) {
   return (
     <div className="bg-white rounded-xl shadow-lg p-8">
-      <h3 className="text-xl font-bold text-gray-800 mb-6">🎤 Recording Controls</h3>
+      <h3 className="text-xl font-bold text-gray-800 mb-6">? Recording Controls</h3>
       
       <div className="space-y-4">
-        {/* 播放我的錄音 */}
+        {/* ?剜??? */}
         {audioBlob && (
-          <button
+          <AppButton
+            icon={Play}
             onClick={onPlayRecording}
             disabled={isPlaying || isRecording}
-            className={`w-full px-6 py-4 rounded-lg text-lg font-semibold transition-all flex items-center justify-center gap-2 ${
-              isPlaying
-                ? 'bg-gray-300 text-gray-600 cursor-not-allowed'
-                : 'bg-blue-600 text-white hover:bg-blue-700'
-            }`}
+            className="max-w-none w-full disabled:opacity-60 disabled:cursor-not-allowed"
           >
-            <span>🔊</span>
-            {isPlaying ? 'Playing...' : 'Listen to My Recording'}
-          </button>
+            {isPlaying ? 'Playing…' : 'Listen to My Recording'}
+          </AppButton>
         )}
 
-        {/* 錄音按鈕 */}
+        {/* ??? */}
         {!isRecording ? (
           <button
             onClick={onStartRecording}
             disabled={isSubmitting}
             className="w-full px-6 py-4 bg-red-500 text-white rounded-lg hover:bg-red-600 text-lg font-semibold transition-all disabled:bg-gray-300 disabled:cursor-not-allowed"
           >
-            🎤 Start Recording
+            ? Start Recording
           </button>
         ) : (
           <button
             onClick={onStopRecording}
             className="w-full px-6 py-4 bg-red-600 text-white rounded-lg hover:bg-red-700 text-lg font-semibold animate-pulse"
           >
-            ⏹️ Stop Recording
+            ?對? Stop Recording
           </button>
         )}
 
@@ -71,3 +70,5 @@ export function RecordingControls({
     </div>
   )
 }
+
+

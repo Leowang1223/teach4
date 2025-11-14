@@ -189,7 +189,7 @@ export function QuestionReportCard({
         <AppButton
           icon={RefreshCw}
           onClick={() => router.push(`/history/playback/${lessonId}/${result.stepId}`)}
-          className="mt-4 max-w-none w-full"
+          className="mt-4"
         >
           Retry This Question
         </AppButton>

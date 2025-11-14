@@ -799,8 +799,8 @@ ChartJS.register(
 interface LessonStep {
   id: number
   teacher: string
-  expected_answer: string | string[]
-  pinyin?: string
+  expected_answer: string[]
+  pinyin?: string | string[]
   pinyin_examples?: string[]
   english_hint: string
   encouragement: string
@@ -810,13 +810,21 @@ interface LessonStep {
     start: number
     end: number
   }[]
+  tts_text?: string
+  tts_voice?: string
 }
 
 interface Lesson {
   lesson_id: string
+  chapter_id?: string
+  lesson_number?: number
   title: string
   description: string
   steps: LessonStep[]
+  review?: {
+    summary: string
+    mission: string
+  }
 }
 
 interface StepResult {
@@ -1160,7 +1168,8 @@ export default function LessonPage() {
       })
     } else if (!currentStepData.video_url) {
       // 沒有影片，播放 TTS
-      playTTS(currentStepData.teacher)
+      const ttsText = currentStepData.tts_text || currentStepData.teacher
+      playTTS(ttsText)
       setCurrentSubtitle(currentStepData.teacher)
     }
   }, [sessionState, currentStepIndex, lesson])
@@ -1299,7 +1308,8 @@ export default function LessonPage() {
           videoRef.current.currentTime = 0
           videoRef.current.play()
         } else {
-          playTTS(currentStep.teacher)
+          const ttsText = currentStep.tts_text || currentStep.teacher
+          playTTS(ttsText)
         }
       }
     }
@@ -1661,8 +1671,8 @@ export default function LessonPage() {
               questionId: currentStep.id,
               lessonId: lessonId,
               prompt: currentStep.teacher,
-              expectedAnswer: Array.isArray(currentStep.expected_answer) ? String(currentStep.expected_answer[0]) : String(currentStep.expected_answer),
-              pinyin: currentStep.pinyin,
+              expectedAnswer: String(currentStep.expected_answer[0] || currentStep.expected_answer),
+              pinyin: Array.isArray(currentStep.pinyin) ? currentStep.pinyin[0] : currentStep.pinyin,
               userLastAnswer: rawTranscript,
               errors: bestMatch.errors || [],
               deckName: 'Course Mistakes'
@@ -1969,7 +1979,8 @@ export default function LessonPage() {
   const handleManualPlay = () => {
     const currentStep = lesson?.steps[currentStepIndex]
     if (currentStep) {
-      playTTS(currentStep.teacher)
+      const ttsText = currentStep.tts_text || currentStep.teacher
+      playTTS(ttsText)
       setCurrentSubtitle(currentStep.teacher)
       setNeedsManualPlay(false)
       setIsRetrying(false)
@@ -2006,7 +2017,7 @@ export default function LessonPage() {
         expectedAnswer: Array.isArray(targetStep.expected_answer)
           ? String(targetStep.expected_answer[0])
           : String(targetStep.expected_answer),
-        pinyin: targetStep.pinyin,
+        pinyin: Array.isArray(targetStep.pinyin) ? targetStep.pinyin[0] : targetStep.pinyin,
         custom: true,
         deckName: selectedDeck || 'General'
       })

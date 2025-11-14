@@ -18,19 +18,39 @@ interface LessonStep {
   completed: boolean
 }
 
+interface LessonSummary {
+  lesson_id: string
+  chapterId: string
+  lessonNumber: number
+  title: string
+  description?: string
+  stepCount: number
+}
+
+interface Chapter {
+  id: string
+  title: string
+  description?: string
+  lessons: LessonSummary[]
+}
+
 const NAV_ITEMS = [
   { href: "/dashboard", label: "Dashboard", description: "Overview & path" },
   { href: "/flashcards", label: "Flashcards", description: "Review mistakes" },
   { href: "/history", label: "History", description: "Reports & playback" },
 ]
 
-const LESSONS: LessonStep[] = [
-  { id: 1, title: "Greetings & Introductions", progress: 100, completed: true },
-  { id: 2, title: "Daily Routine", progress: 0, completed: false },
-  { id: 3, title: "Travel Plans", progress: 100, completed: true },
-  { id: 4, title: "Dining Out", progress: 100, completed: true },
-  { id: 5, title: "Work & Study", progress: 100, completed: true },
-]
+const CHAPTER_TITLES: Record<string, string> = {
+  'C1': 'Chapter 1: Basic Chinese',
+  'C2': 'Chapter 2: Intermediate Conversations',
+  'C3': 'Chapter 3: Advanced Topics'
+}
+
+const CHAPTER_DESCRIPTIONS: Record<string, string> = {
+  'C1': 'Master fundamental Chinese conversation skills',
+  'C2': 'Expand your speaking abilities with practical scenarios',
+  'C3': 'Handle complex conversations with confidence'
+}
 
 export default function DashboardPage() {
   const router = useRouter()
@@ -41,6 +61,10 @@ export default function DashboardPage() {
     levelIndex: 1.3,
     streak: 3,
   })
+  const [chapters, setChapters] = useState<Chapter[]>([])
+  const [selectedChapter, setSelectedChapter] = useState<string>('C1')
+  const [lessons, setLessons] = useState<LessonSummary[]>([])
+  const [lessonProgress, setLessonProgress] = useState<Record<string, number>>({})
 
   useEffect(() => {
     async function fetchStats() {
@@ -68,14 +92,61 @@ export default function DashboardPage() {
     fetchStats()
   }, [])
 
-  const handleLessonClick = (lessonId: number) => {
-    router.push(`/lesson/L${lessonId}`)
+  useEffect(() => {
+    async function fetchLessons() {
+      try {
+        const apiBase =
+          (typeof window !== "undefined" && localStorage.getItem("api_base")) ||
+          process.env.NEXT_PUBLIC_API_BASE ||
+          "http://localhost:8082"
+
+        const response = await fetch(`${apiBase}/api/lessons`)
+        if (response.ok) {
+          const allLessons: LessonSummary[] = await response.json()
+          setLessons(allLessons)
+
+          // 按章节分组
+          const chapterMap = new Map<string, LessonSummary[]>()
+          allLessons.forEach(lesson => {
+            if (!chapterMap.has(lesson.chapterId)) {
+              chapterMap.set(lesson.chapterId, [])
+            }
+            chapterMap.get(lesson.chapterId)!.push(lesson)
+          })
+
+          // 构建章节列表
+          const chapterList: Chapter[] = Array.from(chapterMap.entries()).map(([id, lessons]) => ({
+            id,
+            title: CHAPTER_TITLES[id] || id,
+            description: CHAPTER_DESCRIPTIONS[id],
+            lessons: lessons.sort((a, b) => a.lessonNumber - b.lessonNumber)
+          }))
+
+          setChapters(chapterList.sort((a, b) => a.id.localeCompare(b.id)))
+
+          // 加载进度（从 localStorage）
+          const progressData = JSON.parse(localStorage.getItem('lesson_progress') || '{}')
+          setLessonProgress(progressData)
+        }
+      } catch (error) {
+        console.error("Failed to fetch lessons:", error)
+      }
+    }
+
+    fetchLessons()
+  }, [])
+
+  const handleLessonClick = (lessonId: string) => {
+    router.push(`/lesson/${lessonId}`)
   }
 
   const handleStartLesson = () => {
-    const nextLesson = LESSONS.find((lesson) => !lesson.completed)
+    const filteredLessons = lessons.filter(l => l.chapterId === selectedChapter)
+    const nextLesson = filteredLessons.find((lesson) => (lessonProgress[lesson.lesson_id] || 0) < 100)
     if (nextLesson) {
-      handleLessonClick(nextLesson.id)
+      handleLessonClick(nextLesson.lesson_id)
+    } else if (filteredLessons.length > 0) {
+      handleLessonClick(filteredLessons[0].lesson_id)
     }
   }
 
@@ -208,38 +279,64 @@ export default function DashboardPage() {
             </section>
 
             <section className="space-y-5 rounded-[32px] border border-white bg-white px-8 py-7 shadow-[0_20px_45px_rgba(15,23,42,0.08)]">
-              <div className="space-y-1">
+              <div className="space-y-3">
                 <h2 className="text-sm font-semibold text-slate-800">中文學習課程路線</h2>
                 <p className="text-[11px] text-slate-500">
                   完成每個步驟，課程節奏會幫你從日常對話帶進高難度情境。
                 </p>
+
+                {/* 章节选择器 */}
+                {chapters.length > 0 && (
+                  <div className="flex gap-2">
+                    {chapters.map(chapter => {
+                      const isActive = selectedChapter === chapter.id
+                      return (
+                        <button
+                          key={chapter.id}
+                          onClick={() => setSelectedChapter(chapter.id)}
+                          className={`rounded-xl px-4 py-2 text-xs font-semibold transition ${
+                            isActive
+                              ? 'bg-blue-500 text-white shadow-lg'
+                              : 'border border-blue-200 text-blue-600 hover:bg-blue-50'
+                          }`}
+                        >
+                          {CHAPTER_TITLES[chapter.id] || chapter.id}
+                        </button>
+                      )
+                    })}
+                  </div>
+                )}
               </div>
 
               <div className="flex items-end justify-between gap-5">
-                {LESSONS.map((lesson, index) => (
-                  <button
-                    key={lesson.id}
-                    onClick={() => handleLessonClick(lesson.id)}
-                    className="group flex min-w-[90px] flex-col items-center gap-2"
-                  >
-                    <div
-                      className={`relative flex h-14 w-14 items-center justify-center rounded-full text-sm font-semibold transition group-hover:scale-110 ${
-                        lesson.completed
-                          ? "bg-gradient-to-br from-blue-500 to-blue-600 text-white shadow-[0_12px_30px_rgba(37,99,235,0.45)]"
-                          : "border-[3px] border-blue-200 bg-white text-blue-500"
-                      }`}
+                {lessons.filter(l => l.chapterId === selectedChapter).map((lesson) => {
+                  const progress = lessonProgress[lesson.lesson_id] || 0
+                  const completed = progress >= 100
+                  return (
+                    <button
+                      key={lesson.lesson_id}
+                      onClick={() => handleLessonClick(lesson.lesson_id)}
+                      className="group flex min-w-[90px] flex-col items-center gap-2"
                     >
-                      <span className="relative z-10">{index + 1}</span>
-                      {!lesson.completed && <div className="absolute inset-[3px] rounded-full bg-slate-50" />}
-                    </div>
-                    <div className="text-center leading-tight">
-                      <p className="text-[11px] font-medium text-slate-700 group-hover:text-blue-600">
-                        {lesson.title}
-                      </p>
-                      <p className="text-[10px] text-slate-400">{lesson.completed ? "100%" : `${lesson.progress}%`}</p>
-                    </div>
-                  </button>
-                ))}
+                      <div
+                        className={`relative flex h-14 w-14 items-center justify-center rounded-full text-sm font-semibold transition group-hover:scale-110 ${
+                          completed
+                            ? "bg-gradient-to-br from-blue-500 to-blue-600 text-white shadow-[0_12px_30px_rgba(37,99,235,0.45)]"
+                            : "border-[3px] border-blue-200 bg-white text-blue-500"
+                        }`}
+                      >
+                        <span className="relative z-10">{lesson.lessonNumber}</span>
+                        {!completed && <div className="absolute inset-[3px] rounded-full bg-slate-50" />}
+                      </div>
+                      <div className="text-center leading-tight">
+                        <p className="text-[11px] font-medium text-slate-700 group-hover:text-blue-600">
+                          {lesson.title}
+                        </p>
+                        <p className="text-[10px] text-slate-400">{completed ? "100%" : `${progress}%`}</p>
+                      </div>
+                    </button>
+                  )
+                })}
               </div>
             </section>
           </div>

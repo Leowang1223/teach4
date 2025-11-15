@@ -930,6 +930,10 @@ export default function LessonPage() {
   const [showReport, setShowReport] = useState(false)
   const [fullReport, setFullReport] = useState<FullReport | null>(null)
   const [needsManualPlay, setNeedsManualPlay] = useState(false)
+
+  // ⭐ 樂觀 UI：追蹤背景評分任務
+  const pendingScoresRef = useRef<Map<number, Promise<StepResult>>>(new Map())
+  const [scoreStatus, setScoreStatus] = useState<Map<number, 'pending' | 'completed' | 'failed'>>(new Map())
   const [currentCaption, setCurrentCaption] = useState('')
   const [isVideoPlaying, setIsVideoPlaying] = useState(false)
   const [availableDecks, setAvailableDecks] = useState<string[]>([])
@@ -1152,6 +1156,27 @@ export default function LessonPage() {
       }
     }
   }, [])
+
+  // ⚠️ 頁面離開警告：防止在背景評分進行時離開
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      // 檢查是否有待評分的題目
+      const hasPendingScores = pendingScoresRef.current.size > 0
+
+      if (hasPendingScores) {
+        const message = '評分尚未完成，確定要離開嗎？未完成的評分將會遺失。'
+        e.preventDefault()
+        e.returnValue = message // 標準做法
+        return message // 某些瀏覽器需要
+      }
+    }
+
+    window.addEventListener('beforeunload', handleBeforeUnload)
+
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload)
+    }
+  }, []) // 空依賴，只在組件掛載時設置一次
 
   // 🎥 自動播放影片（每題只播放一次，不重複）
   useEffect(() => {
@@ -1495,320 +1520,53 @@ export default function LessonPage() {
       }
       
       try {
-        const formData = new FormData()
-        formData.append('audio', audioBlob, 'recording.webm')
-        
         const currentStep = lesson.steps[currentStepIndex]
-        const expectedAnswers = Array.isArray(currentStep.expected_answer) 
-          ? currentStep.expected_answer 
-          : [currentStep.expected_answer]
-        
-        formData.append('expectedAnswer', JSON.stringify(expectedAnswers))
-        formData.append('questionId', currentStep.id.toString())
-        formData.append('lessonId', lessonId)
 
-        console.log('📝 評分請求資訊:')
-        console.log('  - 題目 ID:', currentStep.id)
-        console.log('  - 課程 ID:', lessonId)
-        console.log('  - 預期答案:', expectedAnswers)
-        console.log('  - 音頻大小:', audioBlob.size, 'bytes')
-
-        // 🔧 調用新的 /api/score 端點
-        console.log('📡 發送評分請求到:', `${API_BASE}/api/score`)
-        const response = await fetch(`${API_BASE}/api/score`, {
-          method: 'POST',
-          body: formData
-        })
-
-        console.log('📨 回應狀態:', response.status, response.statusText)
-
-        if (!response.ok) {
-          const errorData = await response.json().catch(() => ({}))
-          console.error('❌ 評分失敗回應:', errorData)
-          throw new Error(`評分失敗: ${response.status} - ${errorData.message || ''}`)
-        }
-        
-        const result = await response.json()
-        console.log('評分結果 (完整):', JSON.stringify(result, null, 2))
-        
-        // 統一變數：只使用 userTranscript 作為單一數據源
-        const rawTranscript = result.transcript || ''
-        let userTranscript = rawTranscript
-          .replace(/\[模糊\]/g, '')        // 移除 [模糊] 標記
-          .replace(/\[unclear\]/gi, '')    // 移除 [unclear] 標記
-          .replace(/\[inaudible\]/gi, '')  // 移除 [inaudible] 標記
-          .replace(/\[.*?\]/g, '')         // 移除所有其他 [...] 標記
-          .trim()
-        
-        console.log('原始轉錄:', rawTranscript)
-        console.log('清理後轉錄:', userTranscript)
-        
-        // 檢查 1：轉錄結果長度
-        if (!userTranscript || userTranscript.length < 1) {
-          console.error('❌❌❌ 轉錄結果為空！流程中斷！❌❌❌')
-          console.error('  原始轉錄:', rawTranscript)
-          console.error('  清理後:', userTranscript)
-          console.error('  → 這會導致評分流程中斷，不會保存結果！')
-
-          setRecordingError('Speech recognition failed: No valid speech detected. Please speak clearly and try again.')
-          setIsRetrying(false)
-          setNeedsManualPlay(false)
-          return
-        }
-        
-        // 檢查 2：問題相似度（嚴格門檻 + 信心度）
-        const qSim = calculateSimilarity(currentStep.teacher, userTranscript)
-        const wordConfidences = result.word_confidence || []
-        const lowConfidenceCount = wordConfidences.filter((wc: any) => wc.confidence < 0.6).length
-        const lowConfidence = wordConfidences.length > 0
-          ? (lowConfidenceCount / wordConfidences.length) > 0.7
-          : false
-
-        console.log('🔍 問題文字:', currentStep.teacher)
-        console.log('📝 轉錄文字:', userTranscript)
-        console.log('📊 問題相似度:', (qSim * 100).toFixed(1) + '%')
-        console.log('⚠️ 低信心度比例:', lowConfidence)
-        console.log('⚠️ Word confidence 數據:', wordConfidences.length > 0 ? '有' : '無')
-
-        // 🔧 修復：只在極端情況下才拒絕（99.9% 相似且有信心度數據顯示低信心）
-        // 移除 wordConfidences.length === 0 條件，避免誤判
-        if (qSim >= 0.999 && lowConfidence) {
-          console.error('❌❌❌ 誤讀題面檢查觸發！流程中斷！❌❌❌')
-          console.error('  問題相似度:', (qSim * 100).toFixed(1) + '%')
-          console.error('  低信心度:', lowConfidence)
-          console.error('  題目:', currentStep.teacher)
-          console.error('  回答:', userTranscript)
-          console.error('  → 這會導致評分流程中斷，不會保存結果！')
-
-          setRecordingError('Speech recognition anomaly: The system may have confused your answer with the question. Please try recording again.')
-          setIsRetrying(false)
-          setNeedsManualPlay(false)
-          return
-        }
-        
-        console.log('✅ 轉錄結果驗證通過')
-        
-        const backendScore = result.overall_score || result.total_score || result.score || 0
-        const detailedScores = result.scores || result.detailed_scores || null
-        const rawSuggestions = result.suggestions
-        const suggestionArray = Array.isArray(rawSuggestions) ? rawSuggestions.filter(Boolean) : undefined
-        const suggestionObject =
-          !Array.isArray(rawSuggestions) && rawSuggestions && typeof rawSuggestions === 'object'
-            ? (rawSuggestions as Record<string, string>)
-            : undefined
-        const normalizedSuggestions: Suggestions | undefined =
-          suggestionObject || (suggestionArray && suggestionArray.length ? suggestionArray : undefined)
-        const detailedSuggestionList =
-          Array.isArray(result.detailedSuggestions)
-            ? result.detailedSuggestions.filter(Boolean)
-            : Array.isArray(result.detailed_suggestions)
-              ? result.detailed_suggestions.filter(Boolean)
-              : undefined
-        const mispronouncedEntries = normalizeMispronouncedEntries(result.mispronounced)
-
-        console.log('\n' + '='.repeat(60))
-        console.log('🎯 開始評分流程')
-        console.log('='.repeat(60))
-        console.log('後端總分:', backendScore)
-        console.log('原始轉錄 (顯示用):', rawTranscript)
-        console.log('清理轉錄 (比對用):', userTranscript)
-        console.log('預期答案列表:', expectedAnswers)
-        console.log('='.repeat(60))
-
-        // 🔧 使用模組化評分系統
-        let bestMatch = { 
-          score: { textSim: 0, phonemeSim: 0, toneAcc: 0, combinedScore: 0 } as ThreeDimensionalScore,
-          slotCheck: { valid: false, errors: [] as string[], mismatchPositions: [] as number[] },
-          judgement: null as ScoreJudgement | null,
-          expectedAnswer: '', 
-          errors: [] as CharacterError[], 
-          correctionFeedback: '',
-          detailedAnalysis: undefined as DetailedCharacterAnalysis | undefined
-        }
-        
-        for (const expected of expectedAnswers) {
-          console.log(`\n${'▼'.repeat(30)}`)
-          console.log(`📋 比對答案: "${expected}"`)
-          console.log('▼'.repeat(30))
-          
-          // 🔧 Step 1: 三維評分計算
-          const score = calculateThreeDimensionalScore(expected, userTranscript)
-          
-          // 🔧 Step 2: 槽位檢查
-          const slotCheck = checkKeySlots(expected, userTranscript)
-          
-          // 🔧 Step 3: 判定是否通過
-          const judgement = judgeScore(score, slotCheck, expected, backendScore)
-          
-          // 🔧 Step 4: 輸出詳細日誌
-          logScoringDetails(expected, userTranscript, score, slotCheck, judgement)
-          
-          // 🔧 Step 5: 錯誤分析（用於 UI 顯示）
-          const errors = analyzeErrors(expected, userTranscript)
-          const correctionFeedback = generateCorrectionFeedback(errors, expected, userTranscript)
-          const detailedAnalysis = generateDetailedFeedback(expected, userTranscript)
-          
-          // 選擇綜合得分最高的答案
-          if (score.combinedScore > bestMatch.score.combinedScore) {
-            bestMatch = { 
-              score,
-              slotCheck,
-              judgement,
-              expectedAnswer: expected, 
-              errors, 
-              correctionFeedback, 
-              detailedAnalysis
-            }
-          }
-        }
-
-        console.log('\n' + '★'.repeat(60))
-        console.log('🏆 最終結果')
-        console.log('★'.repeat(60))
-        console.log('最佳匹配答案:', bestMatch.expectedAnswer)
-        console.log('文字相似度:', (bestMatch.score.textSim * 100).toFixed(1) + '%')
-        console.log('拼音相似度:', (bestMatch.score.phonemeSim * 100).toFixed(1) + '%')
-        console.log('聲調準確度:', (bestMatch.score.toneAcc * 100).toFixed(1) + '%')
-        console.log('槽位檢查:', bestMatch.slotCheck.valid ? '✅ 通過' : '❌ 失敗')
-        console.log('最終判定:', bestMatch.judgement?.passed ? '✅ PASSED' : '❌ FAILED')
-        console.log('最終分數:', bestMatch.judgement?.finalScore || 0)
-        console.log('★'.repeat(60) + '\n')
-
-        // 🔧 使用判定結果
-        const passed = bestMatch.judgement?.passed || false
-        const finalScore = bestMatch.judgement?.finalScore || 0
-
-        // 🎯 切換到反饋頁面狀態
-        console.log('\n📝 準備設置反饋數據...')
-        console.log('  - 詳細分析:', bestMatch.detailedAnalysis ? '✅ 存在' : '❌ 缺失')
-        console.log('  - 槽位檢查:', bestMatch.slotCheck.valid ? '✅ 通過' : '❌ 失敗')
-        
-        setCurrentAudioBlob(audioBlob)
-        setCurrentFeedback({
-          score: finalScore,
-          similarity: bestMatch.score.textSim,
-          phonemeSimilarity: bestMatch.score.phonemeSim,
-          toneAccuracy: bestMatch.score.toneAcc,
-          detailedScores: detailedScores || {
-            pronunciation: Math.round(bestMatch.score.phonemeSim * 100),
-            fluency: Math.round(bestMatch.score.textSim * 100),
-            accuracy: Math.round(bestMatch.score.textSim * 100),
-            comprehension: finalScore,
-            confidence: finalScore
-          },
-          transcript: rawTranscript,  // 🔧 顯示原始轉錄，不是清理後的
-          expectedAnswer: currentStep.expected_answer,
-          bestMatchAnswer: bestMatch.expectedAnswer,
-          errors: bestMatch.errors,
-          correctionFeedback: bestMatch.correctionFeedback,
-          detailedAnalysis: bestMatch.detailedAnalysis,
-          slotErrors: bestMatch.slotCheck.errors,  // 🔧 新增：槽位錯誤
-          slotMismatchPositions: bestMatch.slotCheck.mismatchPositions,  // 🔧 新增：錯誤位置
-          suggestions: normalizedSuggestions,
-          detailedSuggestions: detailedSuggestionList,
-          overallPractice: result.overallPractice || '',
-          mispronounced: mispronouncedEntries,
-          passed,
-          fullResult: result
-        })
-        
-        console.log('✅ 反饋數據已設置')
-        
-        // 🔧 重要：保存當前題目的評分結果到 stepResults
-        const currentStepResult: StepResult = {
+        // ⭐ 樂觀 UI：創建佔位結果（立即）
+        const placeholderResult: StepResult = {
           stepId: currentStep.id,
           question: currentStep.teacher,
-          score: finalScore,
+          score: -1,  // -1 表示待評分
           attempts: attempts + 1,
-          passed,
-          detailedScores: detailedScores || {
-            pronunciation: Math.round(bestMatch.score.phonemeSim * 100),
-            fluency: Math.round(bestMatch.score.textSim * 100),
-            accuracy: Math.round(bestMatch.score.textSim * 100),
-            comprehension: finalScore,
-            confidence: finalScore
-          },
-          suggestions: normalizedSuggestions,
-          detailedSuggestions: detailedSuggestionList,
-          overallPractice: result.overallPractice || '',
-          mispronounced: mispronouncedEntries,
-          feedback: result.feedback || '',
-          transcript: rawTranscript,
-          expectedAnswer: bestMatch.expectedAnswer,  // 🆕 正確答案
-          errors: bestMatch.errors,  // 🆕 錯誤字列表
-          correctionFeedback: bestMatch.correctionFeedback,  // 🆕 糾正建議
-          apiResponse: result
+          passed: false,
+          transcript: '評分中...',
+          expectedAnswer: Array.isArray(currentStep.expected_answer)
+            ? currentStep.expected_answer[0]
+            : currentStep.expected_answer
         }
-        
-        console.log('💾 保存評分結果:', {
-          stepId: currentStepResult.stepId,
-          score: currentStepResult.score,
-          passed: currentStepResult.passed,
-          errorsCount: bestMatch.errors?.length || 0  // 🆕 記錄錯誤數量
-        })
-        
-        // 添加到結果列表
-        const allResults = [...stepResults, currentStepResult]
-        setStepResults(prev => [...prev, currentStepResult])
 
-        // 🆕 失敗題目加入單字卡（去重）
-        try {
-          if (!passed) {
-            addOrUpdateFlashcard({
-              questionId: currentStep.id,
-              lessonId: lessonId,
-              prompt: currentStep.teacher,
-              expectedAnswer: String(currentStep.expected_answer[0] || currentStep.expected_answer),
-              pinyin: Array.isArray(currentStep.pinyin) ? currentStep.pinyin[0] : currentStep.pinyin,
-              userLastAnswer: rawTranscript,
-              errors: bestMatch.errors || [],
-              deckName: 'Course Mistakes'
-            })
-            registerFlashcardDeck('Course Mistakes')
-          }
-        } catch (e) {
-          console.warn('Add to flashcards failed:', e)
-        }
-        
-        // 🔧 修改：評分後直接進入下一題，不顯示單題反饋
-        console.log('📝 評分完成，準備進入下一題...')
-        console.log('當前題目索引:', currentStepIndex)
-        console.log('總題目數:', lesson.steps.length)
-        console.log('是否有下一題:', currentStepIndex < lesson.steps.length - 1)
+        // ⭐ 立即添加到結果列表
+        const allResults = [...stepResults, placeholderResult]
+        setStepResults(allResults)
 
-        // 檢查是否還有下一題
+        console.log(`⚡ 樂觀 UI：題目 ${currentStep.id} 已添加（待評分）`)
+
+        // ⭐ 更新狀態：評分中
+        setScoreStatus(prev => new Map(prev).set(currentStep.id, 'pending'))
+
+        // ⭐ 啟動背景評分任務（不等待）
+        const scorePromise = scoreInBackground(audioBlob, currentStep, currentStep.id, attempts)
+        pendingScoresRef.current.set(currentStep.id, scorePromise)
+
+        console.log(`📡 背景評分已啟動：題目 ${currentStep.id}`)
+
+        // ⭐ 立即檢查是否為最後一題
         if (allResults.length >= lesson.steps.length) {
-          console.log('🚀 所有題目已完成，準備顯示最終報表')
-          console.log('  📊 狀態檢查:', {
-            allResultsLength: allResults.length,
-            stepResultsLength: stepResults.length,
-            lessonStepsLength: lesson.steps.length,
-            hasGeneratedReportRef: hasGeneratedReportRef.current,
-            currentShowReport: showReport,
-            hasLesson: !!lesson,
-            lessonId: lesson?.lesson_id,
-            lessonTitle: lesson?.title
+          console.log('🚀 所有題目已完成，等待背景評分完成後顯示報表')
+          console.log('  📊 狀態:', {
+            resultsCount: allResults.length,
+            stepsCount: lesson.steps.length,
+            pendingScores: pendingScoresRef.current.size
           })
-
-          // 🔍 關鍵檢查：確保 lesson 存在
-          if (!lesson) {
-            console.error('❌ 致命錯誤：lesson 在課程完成時為 null!')
-            console.error('  → 這不應該發生，請檢查代碼邏輯')
-            alert('錯誤：課程數據丟失，請重新整理頁面')
-            return
-          }
-
-          console.log('  ✅ lesson 檢查通過，立即調用 finalizeLesson')
-
-          // 立即調用，不使用 setTimeout
-          finalizeLesson(allResults)
+          // ⚠️ 注意：報表將由 updateStepResult 在所有評分完成後自動觸發
         } else {
-          console.log(`  → 進入下一題 (${currentStepIndex + 1}/${lesson.steps.length})`)
-          const nextIndex = Math.min(currentStepIndex + 1, lesson.steps.length - 1)
+          // ⭐ 立即進入下一題（樂觀 UI）
+          const nextIndex = currentStepIndex + 1
           const nextStep = lesson.steps[nextIndex]
 
-          console.log('  更新索引: 從', currentStepIndex, '到', nextIndex)
-          console.log('  下一題數據:', nextStep ? nextStep.teacher : '無')
+          console.log(`⚡ 立即進入下一題 ${nextIndex + 1}/${lesson.steps.length}`)
+          console.log('  - 當前題評分狀態: 背景進行中')
+          console.log('  - 下一題:', nextStep?.teacher)
 
           setCurrentStepIndex(nextIndex)
           setCurrentSubtitle(nextStep?.teacher || '')
@@ -1820,7 +1578,7 @@ export default function LessonPage() {
           setCurrentCaption('')
           setRecordingError(null)
 
-          console.log('✅ 已切換到題目', nextIndex + 1)
+          console.log('✅ 已切換到題目', nextIndex + 1, '（背景評分繼續進行）')
         }
         
       } catch (err) {
@@ -1836,6 +1594,146 @@ export default function LessonPage() {
   }
 
   // 🔧 已移除 handleScore 函數，邏輯轉移到 handleNextQuestion 和即時反饋彈窗
+
+  // ⭐ 樂觀 UI：背景評分函數
+  const scoreInBackground = async (
+    audioBlob: Blob,
+    currentStep: any,
+    stepId: number,
+    attemptCount: number
+  ): Promise<StepResult> => {
+    try {
+      console.log(`📡 背景評分開始：題目 ${stepId}`)
+
+      // 構建 FormData
+      const formData = new FormData()
+      formData.append('audio', audioBlob, 'recording.webm')
+
+      const expectedAnswers = Array.isArray(currentStep.expected_answer)
+        ? currentStep.expected_answer
+        : [currentStep.expected_answer]
+
+      formData.append('expectedAnswer', JSON.stringify(expectedAnswers))
+      formData.append('questionId', stepId.toString())
+      formData.append('lessonId', lessonId)
+
+      // 調用評分 API
+      const response = await fetch(`${API_BASE}/api/score`, {
+        method: 'POST',
+        body: formData
+      })
+
+      if (!response.ok) {
+        throw new Error(`評分失敗: ${response.status}`)
+      }
+
+      const result = await response.json()
+
+      // 處理轉錄結果（使用簡化邏輯）
+      const rawTranscript = result.transcript || ''
+      const userTranscript = rawTranscript
+        .replace(/\[模糊\]/g, '')
+        .replace(/\[.*?\]/g, '')
+        .trim()
+
+      // 計算評分
+      const backendScore = result.overall_score || result.total_score || result.score || 0
+      const detailedScores = result.scores || result.detailed_scores || null
+
+      // 使用後端分數作為最終分數
+      const finalScore = Math.round(backendScore)
+      const passed = finalScore >= 75
+
+      // 構建最終結果
+      const finalResult: StepResult = {
+        stepId: stepId,
+        question: currentStep.teacher,
+        score: finalScore,
+        attempts: attemptCount + 1,
+        passed,
+        detailedScores: detailedScores || {
+          pronunciation: finalScore,
+          fluency: finalScore,
+          accuracy: finalScore,
+          comprehension: finalScore,
+          confidence: finalScore
+        },
+        transcript: rawTranscript,
+        expectedAnswer: Array.isArray(currentStep.expected_answer)
+          ? currentStep.expected_answer[0]
+          : currentStep.expected_answer,
+        suggestions: result.suggestions,
+        feedback: result.feedback || '',
+        mispronounced: result.mispronounced || [],
+        apiResponse: result
+      }
+
+      console.log(`✅ 背景評分完成：題目 ${stepId}，分數 ${finalScore}`)
+
+      // 更新結果
+      updateStepResult(stepId, finalResult)
+
+      return finalResult
+
+    } catch (error) {
+      console.error(`❌ 背景評分失敗：題目 ${stepId}`, error)
+
+      // 使用 fallback 結果
+      const fallbackResult: StepResult = {
+        stepId: stepId,
+        question: currentStep.teacher,
+        score: 60, // fallback 分數
+        attempts: attemptCount + 1,
+        passed: false,
+        transcript: '評分失敗',
+        expectedAnswer: Array.isArray(currentStep.expected_answer)
+          ? currentStep.expected_answer[0]
+          : currentStep.expected_answer,
+        feedback: '評分服務暫時不可用，已使用預設分數',
+        apiResponse: { error: error instanceof Error ? error.message : '未知錯誤' }
+      }
+
+      updateStepResult(stepId, fallbackResult)
+
+      return fallbackResult
+
+    } finally {
+      // 移除待處理任務
+      pendingScoresRef.current.delete(stepId)
+      setScoreStatus(prev => {
+        const newMap = new Map(prev)
+        newMap.set(stepId, 'completed')
+        return newMap
+      })
+    }
+  }
+
+  // ⭐ 樂觀 UI：更新已評分的結果
+  const updateStepResult = (stepId: number, result: StepResult) => {
+    console.log(`📊 更新評分結果：題目 ${stepId}，分數 ${result.score}`)
+
+    setStepResults(prev => {
+      const updated = prev.map(r => r.stepId === stepId ? result : r)
+
+      // 檢查是否所有評分都完成
+      const allCompleted = updated.every(r => r.score !== -1)
+      const hasAllSteps = updated.length >= (lesson?.steps.length || 0)
+
+      console.log(`  進度: ${updated.filter(r => r.score !== -1).length}/${updated.length} 題已評分`)
+
+      // 如果所有評分完成且所有題目已答，觸發報表生成
+      if (allCompleted && hasAllSteps && !hasGeneratedReportRef.current) {
+        console.log('🎉 所有評分完成，準備生成報表')
+        setTimeout(() => {
+          if (lesson) {
+            finalizeLesson(updated)
+          }
+        }, 100)
+      }
+
+      return updated
+    })
+  }
 
   // 生成完整報表（調用 analysis-core 邏輯）
   const generateFullReport = async (
@@ -2048,7 +1946,7 @@ export default function LessonPage() {
     return sessionData.sessionId
   }
 
-  const finalizeLesson = (results: StepResult[]) => {
+  const finalizeLesson = async (results: StepResult[]) => {
     console.log('🔔 ========== finalizeLesson 被調用 ==========')
     console.log('  📊 參數:', {
       resultsLength: results.length,
@@ -2083,6 +1981,39 @@ export default function LessonPage() {
       console.warn('  → 這是正常的，避免重複調用')
       console.warn('  → 當前 showReport:', showReport)
       return
+    }
+
+    // ⭐ 新增：檢查並等待所有背景評分完成
+    const pendingResults = results.filter(r => r.score === -1)
+    if (pendingResults.length > 0) {
+      console.log('⏳ 檢測到背景評分尚未完成，等待中...')
+      console.log('  待評分題目:', pendingResults.map(r => r.stepId))
+      console.log('  待評分數量:', pendingResults.length)
+
+      try {
+        // 收集所有待完成的評分 Promise
+        const pendingPromises = pendingResults
+          .map(r => pendingScoresRef.current.get(r.stepId))
+          .filter((p): p is Promise<StepResult> => p !== undefined)
+
+        console.log('  等待 Promise 數量:', pendingPromises.length)
+
+        if (pendingPromises.length > 0) {
+          console.log('  ⏳ 開始等待所有評分完成...')
+          await Promise.all(pendingPromises)
+          console.log('  ✅ 所有背景評分已完成!')
+
+          // 清理已完成的 Promise
+          pendingResults.forEach(r => {
+            pendingScoresRef.current.delete(r.stepId)
+          })
+        }
+      } catch (error) {
+        console.error('  ❌ 等待背景評分時發生錯誤:', error)
+        // 繼續執行，使用當前可用的結果
+      }
+    } else {
+      console.log('✅ 所有評分已完成，無需等待')
     }
 
     try {

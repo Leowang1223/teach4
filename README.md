@@ -1,224 +1,372 @@
-# AI 模擬面試
+# 🎓 Chinese Learning Platform
 
-一個基於 AI 的模擬面試應用程式，幫助使用者練習面試技巧。
+一個基於 AI 的互動式中文學習平台，透過語音識別和智能評分系統，幫助學習者提升中文口語能力。
 
-## 功能特色
+## ✨ 核心特色
 
-- 🎥 **AI 面試官**: 虛擬面試官提供真實的面試體驗
-- 💬 **即時對話**: 支援語音輸入和文字轉語音
-- 📝 **對話記錄**: 完整記錄面試過程，方便回顧
-- 💡 **智能提示**: 提供面試技巧和建議
-- 🎙️ **語音控制**: 直觀的語音錄製和控制介面
+- 🎯 **智能語音評分**: 使用 Google Gemini API 進行精確的發音、聲調和流暢度評估
+- 🗣️ **即時語音識別**: 支援語音轉文字，立即反饋學習成果
+- 📊 **多維度分析**: 從發音、流暢度、準確度、理解力等多個維度評估表現
+- 📚 **結構化課程**: 按章節組織的漸進式學習內容
+- 🎬 **視頻教學**: 整合 YouTube 教學視頻，提供視覺化學習體驗
+- 📖 **智能單字卡**: 自動收錄錯誤題目，支援分類管理和複習
+- 📈 **學習歷史**: 完整記錄學習過程，追蹤進步軌跡
+- 🎨 **現代化界面**: 響應式設計，支援桌面和移動設備
 
-## 技術架構
+## 🚀 快速開始
 
-- **前端框架**: Next.js 14 (App Router)
-- **語言**: TypeScript
-- **樣式**: Tailwind CSS
-- **圖示**: Lucide React
-- **狀態管理**: React Hooks
+### 環境要求
 
-## 專案結構
+- Node.js 18+ 
+- npm 或 yarn
+- Google Gemini API Key
 
-```
-apps/web/
-├── src/
-│   ├── app/                 # App Router 根目錄
-│   │   ├── layout.tsx      # 全域框架
-│   │   ├── globals.css     # Tailwind 基底樣式
-│   │   ├── page.tsx        # 主頁面
-│   │   └── mock-interview/ # 模擬面試頁面
-│   ├── components/         # 可復用元件
-│   │   ├── TopBar.tsx     # 頂部導航欄
-│   │   ├── TutorPane/     # 導師面板
-│   │   ├── TranscriptPane/ # 對話記錄面板
-│   │   ├── HintPane/      # 提示面板
-│   │   ├── ActionPane.tsx # 操作面板
-│   │   └── VoiceDock.tsx  # 語音控制停靠
-│   └── styles/            # 額外樣式
-└── public/                # 靜態資產
-```
+### 安裝步驟
 
-## 快速開始
-
-### 安裝依賴
-
+1. **克隆專案**
 ```bash
-cd apps/web
+git clone <repository-url>
+cd chiness-interview-main
+```
+
+2. **安裝依賴**
+```bash
 npm install
 ```
 
-### 開發模式
+3. **配置環境變數**
 
+創建 `apps/backend/.env` 文件：
+```env
+GEMINI_API_KEY=your_gemini_api_key_here
+PORT=8082
+```
+
+4. **啟動服務**
+
+**方式一：同時啟動前後端**
 ```bash
 npm run dev
 ```
 
-### 建置專案
-
+**方式二：分別啟動**
 ```bash
-npm run build
-npm start
+# 後端 (Port 8082)
+cd apps/backend
+npm run dev
+
+# 前端 (Port 3000)
+cd apps/web
+npm run dev
 ```
 
-## 主要元件說明
+5. **訪問應用**
+```
+前端: http://localhost:3000
+後端: http://localhost:8082
+```
 
-### TutorPane (導師面板)
-- **VideoCard**: 顯示 AI 面試官的視訊畫面
-- **SpeechWave**: 語音活動波形顯示
-- **TTSControls**: 文字轉語音控制
+## 📁 專案架構
 
-### TranscriptPane (對話記錄面板)
-- **MessageBubble**: 對話氣泡元件
-- 即時顯示面試對話記錄
+```
+chiness-interview-main/
+├── apps/
+│   ├── backend/              # Express + TypeScript 後端
+│   │   ├── src/
+│   │   │   ├── routes/       # API 路由
+│   │   │   │   ├── score.ts  # 語音評分接口
+│   │   │   │   └── lesson.ts # 課程管理接口
+│   │   │   ├── plugins/      # 課程內容插件
+│   │   │   │   └── chinese-lessons/
+│   │   │   │       ├── chapter-1/  # 第一章課程
+│   │   │   │       ├── chapter-2/  # 第二章課程
+│   │   │   │       └── ...
+│   │   │   └── server.ts     # 服務器入口
+│   │   └── .env              # 環境變數配置
+│   │
+│   └── web/                  # Next.js 14 前端
+│       ├── app/
+│       │   ├── (protected)/  # 受保護路由
+│       │   │   ├── lesson/[id]/  # 課程學習頁面
+│       │   │   ├── dashboard/    # 儀表板
+│       │   │   ├── history/      # 學習歷史
+│       │   │   └── flashcards/   # 單字卡
+│       │   └── layout.tsx    # 全局布局
+│       └── components/       # React 組件
+│
+├── package.json              # 根專案配置
+└── README.md                # 本文件
+```
 
-### HintPane (提示面板)
-- **HintCard**: 面試提示卡片
-- 提供實用的面試技巧和建議
+## 🎮 主要功能
 
-### ActionPane (操作面板)
-- 錄製控制、暫停、重置等功能
-- 顯示錄製狀態和時間
+### 1. 課程學習 (`/lesson/[id]`)
 
-### VoiceDock (語音控制停靠)
-- 麥克風和揚聲器控制
-- 語音等級指示器
+**核心流程：**
+- 選擇課程章節
+- 聽取題目音頻或觀看視頻
+- 錄製答案
+- **即時自動評分** - 無延遲直接進入下一題
+- 完成後查看詳細報表
 
-## 開發注意事項
+**評分系統：**
+- 文字相似度分析
+- 拼音匹配檢測
+- 聲調準確度評估
+- 槽位檢查（關鍵字驗證）
+- 綜合得分計算
 
-- 使用 TypeScript 確保型別安全
-- 遵循 React Hooks 最佳實踐
-- 響應式設計，支援各種螢幕尺寸
-- 使用 Tailwind CSS 進行樣式設計
+**自動前進機制：**
+- 評分完成後立即切換到下一題
+- 不顯示單題反饋頁面
+- 失敗題目自動加入單字卡
+- 所有題目完成後顯示總報表
 
-## 端到端驗收與自我檢查（語音串流）
+### 2. 學習儀表板 (`/dashboard`)
 
-目標：驗證「前端按下錄音 → 後端回傳 partial/final」整條鏈路。
+- 查看可用課程列表
+- 追蹤學習進度
+- 快速訪問最近課程
 
-- 前置準備
-  - 確認後端 node-gateway 已啟動，且 WebSocket 服務綁在 `/ws`（目前伺服器實作支援 `speech.start/chunk/end`，每 ~800ms 推 `stt.partial`）。
-  - 啟動 `apps/web`，打開包含 `TTSControls` 的頁面。
+### 3. 學習歷史 (`/history`)
 
-- 瀏覽器觀察點
-  - 打開 DevTools → Network → WebSocket，選擇與 `ws(s)://<host>/ws` 的連線。
+- 查看所有學習記錄
+- 詳細的評分報告
+- 五維雷達圖分析
+- 逐題表現回顧
+- 錯誤分析和改進建議
 
-- 錄音開始（點「開始錄音」）
-  - 應看到送出：`{type:'speech.start'}`。
-  - 應收到：`{type:'speech.ack', status:'start'}`。
-  - 隨後每 ~300ms 應看到一個二進位訊息（音訊分片）送出。
+### 4. 智能單字卡 (`/flashcards`)
 
-- 說話過程
-  - 每 ~800ms 應收到：`{type:'stt.partial', text:'...'}`。
-  - UI 應即時顯示「即時字幕（partial）」。
+- 自動收錄錯誤題目
+- 分類管理（可創建不同牌組）
+- 複習模式
+- 匯出/匯入功能
 
-- 錄音結束（點「結束錄音」）
-  - 應看到送出：`{type:'speech.end'}`。
-  - 應收到：`{type:'stt.final', text:'完整內容'}`。
-  - UI 應顯示「最終轉寫（final）」並清空 partial。
-  - 若後端開啟 LLM/TTS：稍後會依序收到 `{type:'llm.reply'}`、多個 `{type:'tts.audio'}` 以及 `{type:'tts.end'}`。
+## 🔧 技術棧
 
-- 資源釋放檢查
-  - 停止後，`navigator.mediaDevices` 取得的麥克風 `MediaStreamTrack.readyState` 應為 `ended`。
-  - 元件卸載時不應殘留開啟的麥克風或錄音器（無持續送片與裝置占用）。
+### 前端
+- **框架**: Next.js 14 (App Router)
+- **語言**: TypeScript
+- **樣式**: Tailwind CSS
+- **UI 組件**: Lucide React Icons
+- **圖表**: Chart.js + react-chartjs-2
+- **PDF 生成**: jsPDF + html2canvas
+- **中文處理**: pinyin-pro
 
-## 未來規劃
+### 後端
+- **框架**: Express.js
+- **語言**: TypeScript
+- **AI 服務**: Google Generative AI (Gemini 2.0 Flash)
+- **語音處理**: Web Audio API
+- **CORS**: cors middleware
 
-- [ ] 整合真實的 AI 語音識別
-- [ ] 支援多種面試類型
-- [ ] 面試表現分析報告
-- [ ] 多語言支援
-- [ ] 行動裝置應用程式
+### 開發工具
+- **包管理**: npm workspaces
+- **並發執行**: concurrently
+- **TypeScript**: ts-node
 
-## 授權
+## 📊 評分算法
+
+### 三維評分系統
+
+1. **文字相似度 (Text Similarity)**
+   - Levenshtein Distance 算法
+   - 標準化處理（移除標點、空格）
+   - 權重: 40%
+
+2. **拼音相似度 (Phoneme Similarity)**
+   - 中文字轉拼音比對
+   - 支援同音字識別
+   - 權重: 35%
+
+3. **聲調準確度 (Tone Accuracy)**
+   - 四聲匹配度分析
+   - 拼音聲調號驗證
+   - 權重: 25%
+
+### 槽位檢查 (Slot Check)
+
+- 驗證關鍵字是否存在
+- 檢查語義結構完整性
+- 識別遺漏的重要成分
+
+### 最終判定
+
+```typescript
+綜合得分 = (文字相似度 × 0.4) + (拼音相似度 × 0.35) + (聲調準確度 × 0.25)
+
+通過條件:
+- 綜合得分 ≥ 70 分
+- 槽位檢查通過
+- 後端 AI 評分 ≥ 60 分
+```
+
+## 🎨 課程內容格式
+
+### 課程定義 (JSON)
+
+```json
+{
+  "lesson_id": "C1-L01",
+  "chapterId": "C1",
+  "lessonNumber": 1,
+  "title": "Greetings",
+  "description": "Learn basic greetings",
+  "steps": [
+    {
+      "id": 1,
+      "teacher": "你好",
+      "pinyin": ["nǐ hǎo"],
+      "expected_answer": ["你好"],
+      "video_url": "https://youtube.com/watch?v=...",
+      "captions": [
+        {
+          "start": 0,
+          "end": 2,
+          "text": "Hello in Chinese"
+        }
+      ]
+    }
+  ]
+}
+```
+
+### 支援的功能
+
+- ✅ 多個預期答案（alternative answers）
+- ✅ 拼音標註
+- ✅ YouTube 視頻整合
+- ✅ 時間軸字幕
+- ✅ TTS 語音合成
+- ✅ 視頻播放控制
+
+## 🔐 API 端點
+
+### 課程相關
+
+```
+GET  /api/lessons           # 獲取所有課程列表
+GET  /api/lessons/:id       # 獲取特定課程詳情
+```
+
+### 評分相關
+
+```
+POST /api/score             # 提交錄音進行評分
+```
+
+**請求格式 (multipart/form-data):**
+- `audio`: 音頻文件 (webm/wav)
+- `expectedAnswer`: JSON 字符串數組
+- `questionId`: 題目 ID
+- `lessonId`: 課程 ID
+
+**響應格式:**
+```json
+{
+  "overall_score": 85,
+  "transcript": "你好",
+  "feedback": "Great pronunciation!",
+  "suggestions": ["Practice tone 3 more", "..."],
+  "mispronounced": [
+    {
+      "text": "好",
+      "pinyin": "hao3",
+      "issue": "Tone too flat",
+      "tip": "Dip down for tone 3"
+    }
+  ],
+  "method": "gemini"
+}
+```
+
+## 🧪 測試
+
+### 後端測試
+```bash
+cd apps/backend
+npm test
+```
+
+### 前端測試
+```bash
+cd apps/web
+npm test
+```
+
+### Gemini API 測試
+```bash
+node test-gemini-scoring.js
+```
+
+## 🐛 常見問題
+
+### 1. Port 已被佔用
+
+**清除 Port 8082:**
+```powershell
+Get-NetTCPConnection -LocalPort 8082 | Select-Object -ExpandProperty OwningProcess | ForEach-Object { Stop-Process -Id $_ -Force }
+```
+
+**清除 Port 3000:**
+```powershell
+Get-NetTCPConnection -LocalPort 3000 | Select-Object -ExpandProperty OwningProcess | ForEach-Object { Stop-Process -Id $_ -Force }
+```
+
+### 2. Gemini API 錯誤
+
+- 確認 `.env` 文件中的 `GEMINI_API_KEY` 正確
+- 檢查 API 配額是否足夠
+- 驗證網絡連接
+
+### 3. 前端編譯錯誤
+
+```bash
+cd apps/web
+rm -rf .next
+npm install
+npm run build
+```
+
+### 4. 音頻錄製失敗
+
+- 確認瀏覽器麥克風權限
+- 使用 HTTPS 或 localhost
+- 檢查麥克風設備狀態
+
+## 📝 開發指南
+
+### 添加新課程
+
+1. 在 `apps/backend/src/plugins/chinese-lessons/` 創建新章節文件夾
+2. 添加 `lesson-X.json` 文件
+3. 按照課程格式定義內容
+4. 重啟後端服務
+
+### 修改評分邏輯
+
+編輯 `apps/web/app/(protected)/lesson/[id]/page.tsx`:
+- `calculateThreeDimensionalScore()` - 三維評分
+- `checkKeySlots()` - 槽位檢查
+- `judgeScore()` - 最終判定
+
+### 自定義 UI 主題
+
+編輯 `apps/web/app/globals.css` 和 Tailwind 配置
+
+## 🤝 貢獻
+
+歡迎提交 Issue 和 Pull Request！
+
+## 📄 授權
 
 MIT License
 
-## 檔案結構與功能對照表（完整）
+## 👥 作者
 
-以下彙總整個專案的主要檔案與職責，方便快速查找與提問。
+Taiwan Chinese Learning Platform Team
 
-### 根目錄
-- `.dockerignore` / `.gitattributes` / `.gitignore`：容器與版控設定
-- `docker-compose.yml`：本地一鍵啟動前後端（backend:8081、frontend:3000）與健康檢查
-- `Git開發指南`：Git 分支、PR、提交規範
-- `LICENSE`：MIT 授權
-- `README.md`：專案總覽與驗收指南（本文件）
-- `apps/`：前後端原始碼與測試資料
+---
 
-### apps/
-- `sample.json`：分析 API 的測試輸入樣本
-
-### apps/backend（Express + TypeScript）
-- `.env.bak`：環境變數樣板（GEMINI_API_KEY / GOOGLE_API_KEY）
-- `Dockerfile`：後端容器建置腳本
-- `package.json`：腳本與依賴（express、@google/generative-ai）
-- `tsconfig.json`：TypeScript 編譯設定
-- `logs/sessions/`：面試會話記錄輸出（每個 session 一個 JSON 檔）
-
-#### apps/backend/src
-- `server.ts`：Express 入口；掛載中介軟體、路由、健康檢查
-  - 路由：`/api`（題庫/語音/日誌）與 `/v1/analyze`（POST 原始資料、GET 以 sessionId）
-- `geminiService.ts`：Gemini 服務封裝
-  - `synthesizeSpeech(text)`：TTS 文字轉語音（回傳音訊 Base64 + MIME）
-  - `transcribeAudio(buffer, mime)`：STT 語音轉逐字稿（嚴格純文字）
-
-##### src/routes
-- `qa.ts`
-  - `GET /api/questions/:type`：載入題庫外掛 `plugins/interview-types/<type>/rule`
-  - `POST /api/tts`：呼叫 Gemini TTS
-  - `POST /api/stt`：呼叫 Gemini STT
-  - `POST /api/log`：寫入/更新 `logs/sessions` 單題記錄
-- `analyze.ts`
-  - `POST /v1/analyze`：規則評分 →（選配）Gemini 語義融合 →（選配）逐題建議/優化稿
-  - `GET /v1/analyze/:sessionId`：讀取 session 檔後做同等分析並回傳
-
-##### src/analysis-core（評分核心）
-- `types.ts`：分析輸入/輸出與結構型別（QAItem、PerQuestionResult、Overview 等）
-- `compute.ts`：規則打分（題意契合/結構/具體度/節奏），`fuseWithLLM()` 融合語義訊號
-- `aggregate.ts`：彙整總分、雷達圖與平均時長
-- `recommend.ts`：挑最弱題與全局弱項給出建議列點
-- `index.ts`：統一匯出
-
-##### src/service
-- `semantic.ts`：語義訊號抽取器介面與實作
-  - `DummySemanticExtractor`：假資料（本地開發）
-  - `GeminiSemanticExtractor`：以 Gemini 2.0 Flash 生成 `SemanticSignals`
-
-##### src/utils
-- `fileStore.ts`：
-  - `ensureSessionLogDir()`：確保 `logs/sessions` 目錄存在
-  - `upsertQaLogEntry(sessionId, entry)`：新增或覆寫指定 index 記錄
-  - `readSessionLog(sessionId)`：讀取整份 session 陣列
-
-##### src/plugins/interview-types（題庫/流程外掛）
-- `self_intro/rule`：自我介紹題庫（含 `playbackMode`、`videoPath`、`answer_hint`、`advice`、`enable`）
-- `pm_interview/flow_interview.json`：PM 面試對話狀態機（opening/product_sense/execution/leadership/wrap_up）
-
-### apps/web（Next.js 14 + React 18 + Tailwind）
-- `Dockerfile`：前端容器建置
-- `package.json`：Next/Tailwind/Chart.js/html2canvas/jsPDF 等依賴
-- `next.config.js`：可配置 API 代理或環境變數
-- `middleware.ts`：路由中介層（保留點）
-- `README.md`：前端音訊處理與資料流說明
-- `public/`
-  - `ws-test.html`：WebSocket 測試頁
-  - `videos/self_intro/`：面試官預錄影片
-  - `worklets/pcm-worklet.js`：錄音 PCM Worklet（若有使用）
-
-#### apps/web/src
-- `app/layout.tsx`、`app/providers.tsx`、`app/globals.css`：App Router 框架與全域樣式/Provider
-- `app/(protected)/prepare/page.tsx`：裝置檢測與切換（MediaSessionProvider，同一個 MediaStream）
-- `app/(protected)/interview/`：面試頁（語音對話、字幕、流程控制）
-- `app/(protected)/analysis/page.tsx`：分析報告（雷達圖、逐題卡、PDF 匯出；支援以 query 帶入 sessionId）
-- `components/`：TopBar、VoiceDock、TutorPane、TranscriptPane、HintPane 等 UI
-- `lib/api.ts`：REST API 包裝（支援以 localStorage.api_base 覆蓋 API Base）
-- `lib/ttsPlayer.ts`：TTS 播放器（解碼、重採樣、邊界平滑、佇列）
-- `lib/chunkSmoother.ts`：音訊片段接合與平滑
-- `lib/media/MediaSessionProvider.tsx`：統一管理 MediaStream 與 audio/video/speaker 狀態
-- `lib/useInterviewFlow.ts` 與 `lib/strategies/`：面試流程控制與 TTS/Video 播放策略
-
-### 常見提問索引
-- 想改評分邏輯：請看 `apps/backend/src/analysis-core/compute.ts`
-- 想加/換題庫：新增 `apps/backend/src/plugins/interview-types/<type>/rule`，前端以 `?type=<type>` 載入
-- 以 sessionId 直接出報告：前端造訪 `/analysis?sessionId=<id>` → 觸發 `GET /v1/analyze/:sessionId`
-- 改 STT/TTS 供應商：替換 `apps/backend/src/geminiService.ts` 內部實作
+**最後更新**: 2025-11-15

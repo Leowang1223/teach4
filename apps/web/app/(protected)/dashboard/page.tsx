@@ -136,7 +136,12 @@ export default function DashboardPage() {
             lessons: lessons.sort((a, b) => a.lessonNumber - b.lessonNumber)
           }))
 
-          setChapters(chapterList.sort((a, b) => a.id.localeCompare(b.id)))
+          // 按章节数字排序 (C1, C2, ..., C10)
+          setChapters(chapterList.sort((a, b) => {
+            const numA = parseInt(a.id.replace('C', ''))
+            const numB = parseInt(b.id.replace('C', ''))
+            return numA - numB
+          }))
 
           // 加载进度（从 localStorage）
           const progressData = JSON.parse(localStorage.getItem('lesson_progress') || '{}')

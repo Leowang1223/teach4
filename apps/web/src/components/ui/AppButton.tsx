@@ -1,35 +1,41 @@
-import { type LucideIcon } from 'lucide-react'
-import clsx from 'clsx'
-import { forwardRef, type ButtonHTMLAttributes, type ReactNode } from 'react'
+// Dashboard‑Style Optimized Button Component
+import React from 'react'
+import { LucideIcon } from 'lucide-react'
 
-type AppButtonVariant = 'primary' | 'danger'
-
-interface AppButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
-  variant?: AppButtonVariant
+interface AppButtonProps {
+  variant?: 'primary' | 'danger'
+  children: React.ReactNode
   icon?: LucideIcon
-  children: ReactNode
+  onClick?: (e: React.MouseEvent<HTMLButtonElement>) => void
+  disabled?: boolean
   className?: string
 }
 
-const baseStyles =
-  'w-full max-w-md flex items-center justify-center gap-2 px-6 py-3 rounded-2xl font-semibold shadow-sm border transition-all active:scale-[0.97] text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2'
+// Dashboard 風格：柔和白底 + 淡邊框 + 微陰影 + 圓角 2xl
+export const AppButton = ({
+  variant = 'primary',
+  children,
+  icon: Icon,
+  onClick,
+  disabled = false,
+  className = ''
+}: AppButtonProps) => {
+  const base =
+    'w-full max-w-md flex items-center justify-center gap-2 px-6 py-3 rounded-2xl font-semibold shadow-sm border transition-all active:scale-[0.97] text-sm disabled:opacity-50 disabled:cursor-not-allowed'
 
-const variantStyles: Record<AppButtonVariant, string> = {
-  primary: 'bg-white border-blue-200 text-blue-600 hover:bg-blue-50 hover:shadow-md focus-visible:ring-blue-200',
-  danger: 'bg-white border-red-300 text-red-600 hover:bg-red-50 hover:shadow-md focus-visible:ring-red-200'
-}
+  const styles =
+    variant === 'primary'
+      ? 'bg-white border-blue-200 text-blue-600 hover:bg-blue-50 hover:shadow-md'
+      : 'bg-white border-red-300 text-red-600 hover:bg-red-50 hover:shadow-md'
 
-export const AppButton = forwardRef<HTMLButtonElement, AppButtonProps>(
-  ({ variant = 'primary', icon: Icon, children, className, ...props }, ref) => (
+  return (
     <button
-      ref={ref}
-      className={clsx(baseStyles, variantStyles[variant], className)}
-      {...props}
+      className={`${base} ${styles} ${className}`}
+      onClick={onClick}
+      disabled={disabled}
     >
-      {Icon && <Icon size={18} className="opacity-80" aria-hidden="true" />}
-      <span>{children}</span>
+      {Icon && <Icon size={18} className="opacity-80" />}
+      {children}
     </button>
   )
-)
-
-AppButton.displayName = 'AppButton'
+}

@@ -4,6 +4,7 @@ import { useEffect, useState, useRef } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Image from 'next/image'
 import { Radar } from 'react-chartjs-2'
+import confetti from 'canvas-confetti'
 import {
   Chart as ChartJS,
   RadialLinearScale,
@@ -931,6 +932,10 @@ export default function LessonPage() {
   const [fullReport, setFullReport] = useState<FullReport | null>(null)
   const [needsManualPlay, setNeedsManualPlay] = useState(false)
 
+  // 🎉 課程完成慶祝畫面
+  const [showCompletionCelebration, setShowCompletionCelebration] = useState(false)
+  const [countdown, setCountdown] = useState(60)
+
   // ⭐ 樂觀 UI：追蹤背景評分任務
   const pendingScoresRef = useRef<Map<number, Promise<StepResult>>>(new Map())
   const [scoreStatus, setScoreStatus] = useState<Map<number, 'pending' | 'completed' | 'failed'>>(new Map())
@@ -998,7 +1003,7 @@ export default function LessonPage() {
       try {
         setLoading(true)
         const response = await fetch(`${API_BASE}/api/lessons/${lessonId}`)
-        if (!response.ok) throw new Error('課程載入失敗')
+        if (!response.ok) throw new Error('Failed to load lesson')
         const data = await response.json()
 
         console.log('📚 課程數據載入:', {
@@ -1010,7 +1015,7 @@ export default function LessonPage() {
 
         // 檢查課程數據是否有效
         if (!data.steps || !Array.isArray(data.steps) || data.steps.length === 0) {
-          throw new Error('課程沒有題目')
+          throw new Error('Lesson has no questions')
         }
 
         setLesson(data)
@@ -1164,7 +1169,7 @@ export default function LessonPage() {
       const hasPendingScores = pendingScoresRef.current.size > 0
 
       if (hasPendingScores) {
-        const message = '評分尚未完成，確定要離開嗎？未完成的評分將會遺失。'
+        const message = 'Scoring is not yet complete. Are you sure you want to leave? Incomplete scores will be lost.'
         e.preventDefault()
         e.returnValue = message // 標準做法
         return message // 某些瀏覽器需要
@@ -1177,6 +1182,80 @@ export default function LessonPage() {
       window.removeEventListener('beforeunload', handleBeforeUnload)
     }
   }, []) // 空依賴，只在組件掛載時設置一次
+
+  // 🎉 完成慶祝畫面：倒數計時器和自動返回 dashboard
+  useEffect(() => {
+    if (!showCompletionCelebration) return
+
+    console.log('🎉 啟動倒數計時器，60 秒後自動返回 dashboard')
+
+    // 每秒更新倒數
+    const countdownInterval = setInterval(() => {
+      setCountdown(prev => {
+        const newCount = prev - 1
+        if (newCount <= 0) {
+          clearInterval(countdownInterval)
+          console.log('⏰ 倒數結束，返回 dashboard')
+          router.push('/dashboard')
+          return 0
+        }
+        return newCount
+      })
+    }, 1000)
+
+    return () => {
+      clearInterval(countdownInterval)
+    }
+  }, [showCompletionCelebration, router])
+
+  // 🎊 完成慶祝畫面：觸發彩帶動畫
+  useEffect(() => {
+    if (!showCompletionCelebration) return
+
+    console.log('🎊 觸發彩帶動畫!')
+
+    // 初始爆炸
+    confetti({
+      particleCount: 100,
+      spread: 70,
+      origin: { y: 0.6 }
+    })
+
+    // 持續彩帶效果（前 3 秒）
+    const duration = 3000
+    const animationEnd = Date.now() + duration
+    const defaults = { startVelocity: 30, spread: 360, ticks: 60, zIndex: 0 }
+
+    function randomInRange(min: number, max: number) {
+      return Math.random() * (max - min) + min
+    }
+
+    const interval = setInterval(() => {
+      const timeLeft = animationEnd - Date.now()
+
+      if (timeLeft <= 0) {
+        clearInterval(interval)
+        return
+      }
+
+      const particleCount = 50 * (timeLeft / duration)
+
+      confetti({
+        ...defaults,
+        particleCount,
+        origin: { x: randomInRange(0.1, 0.3), y: Math.random() - 0.2 }
+      })
+      confetti({
+        ...defaults,
+        particleCount,
+        origin: { x: randomInRange(0.7, 0.9), y: Math.random() - 0.2 }
+      })
+    }, 250)
+
+    return () => {
+      clearInterval(interval)
+    }
+  }, [showCompletionCelebration])
 
   // 🎥 自動播放影片（每題只播放一次，不重複）
   useEffect(() => {
@@ -1394,7 +1473,7 @@ export default function LessonPage() {
 
     // 停止任何正在播放的音頻
     window.speechSynthesis.cancel()
-    
+
     // 重新播放題目
     if (lesson) {
       const currentStep = lesson.steps[currentStepIndex]
@@ -1407,6 +1486,39 @@ export default function LessonPage() {
           playTTS(ttsText)
         }
       }
+    }
+  }
+
+  // 🏁 手動結束課程（即使未完成所有題目）
+  const handleFinishLesson = () => {
+    if (!lesson) return
+
+    console.log('🏁 用戶手動結束課程')
+    console.log('  已完成題目:', stepResults.length, '/', lesson.steps.length)
+
+    // 如果沒有任何作答，提示用戶
+    if (stepResults.length === 0) {
+      const confirmFinish = window.confirm(
+        'You haven\'t answered any questions yet. Are you sure you want to end the lesson?'
+      )
+      if (!confirmFinish) return
+    }
+
+    // 如果有未完成的題目，再次確認
+    if (stepResults.length < lesson.steps.length && stepResults.length > 0) {
+      const confirmFinish = window.confirm(
+        `You have completed ${stepResults.length}/${lesson.steps.length} questions. Are you sure you want to end the lesson and view your results?`
+      )
+      if (!confirmFinish) return
+    }
+
+    // 調用 finalizeLesson，即使只做了部分題目
+    console.log('✅ 確認結束，調用 finalizeLesson')
+    if (stepResults.length > 0) {
+      finalizeLesson(stepResults)
+    } else {
+      // 如果沒有任何結果，直接返回 dashboard
+      router.push('/dashboard')
     }
   }
 
@@ -1552,13 +1664,16 @@ export default function LessonPage() {
 
         // ⭐ 立即檢查是否為最後一題
         if (allResults.length >= lesson.steps.length) {
-          console.log('🚀 所有題目已完成，等待背景評分完成後顯示報表')
+          console.log('🚀 所有題目已完成，立即顯示慶祝畫面！')
           console.log('  📊 狀態:', {
             resultsCount: allResults.length,
             stepsCount: lesson.steps.length,
             pendingScores: pendingScoresRef.current.size
           })
-          // ⚠️ 注意：報表將由 updateStepResult 在所有評分完成後自動觸發
+
+          // ⭐ 立即觸發完成流程（背景評分會在 finalizeLesson 內等待）
+          console.log('  🎉 立即調用 finalizeLesson')
+          finalizeLesson(allResults.slice(0, lesson.steps.length))
         } else {
           // ⭐ 立即進入下一題（樂觀 UI）
           const nextIndex = currentStepIndex + 1
@@ -1584,7 +1699,7 @@ export default function LessonPage() {
       } catch (err) {
         console.error('❌ 評分錯誤:', err)
         const errorMessage = err instanceof Error ? err.message : '未知錯誤'
-        alert(`評分失敗：${errorMessage}\n\n請確認：\n1. 後端服務器是否運行在 8082 端口\n2. 麥克風權限是否正常\n3. 錄音時間是否足夠`)
+        alert(`Scoring failed: ${errorMessage}\n\nPlease check:\n1. Is the backend server running on port 8082?\n2. Are microphone permissions granted?\n3. Was the recording duration sufficient?`)
         setIsRetrying(false)
         setNeedsManualPlay(false)
       }
@@ -1970,8 +2085,9 @@ export default function LessonPage() {
 
     // 檢查 2: results 是否有數據
     if (results.length === 0) {
-      console.error('❌ 無法生成報表：results 為空')
-      console.error('  → 請確認評分流程是否正確執行')
+      console.warn('⚠️ 無法生成報表：沒有任何作答記錄')
+      console.warn('  → 返回 dashboard')
+      router.push('/dashboard')
       return
     }
 
@@ -2017,11 +2133,11 @@ export default function LessonPage() {
     }
 
     try {
-      console.log('✅ 所有檢查通過，開始生成報表...')
+      console.log('✅ 所有檢查通過，開始儲存課程...')
       hasGeneratedReportRef.current = true
 
-      // 步驟 1: 生成簡易報表
-      console.log('  📝 步驟 1/4: 調用 generateSimpleReport')
+      // 步驟 1: 生成簡易報表（用於儲存）
+      console.log('  📝 步驟 1/3: 調用 generateSimpleReport')
       const simpleReport = generateSimpleReport(results)
       console.log('  ✅ 報表生成成功:', {
         totalScore: simpleReport.overview.total_score,
@@ -2029,40 +2145,19 @@ export default function LessonPage() {
         questionsCount: simpleReport.per_question.length
       })
 
-      // 步驟 2: 設置 fullReport 狀態
-      console.log('  📝 步驟 2/4: 調用 setFullReport')
-      setFullReport(simpleReport)
-      console.log('  ✅ setFullReport 已調用')
-
-      // 步驟 3: 設置 showReport 狀態 (關鍵!)
-      console.log('  📝 步驟 3/4: 調用 setShowReport(true) ⭐⭐⭐')
-      setShowReport(true)
-      console.log('  ✅ setShowReport(true) 已調用!')
-      console.log('  ⏳ 等待 React 重新渲染...')
-
-      // 驗證狀態是否更新 (延遲檢查)
-      setTimeout(() => {
-        console.log('  🔍 狀態驗證 (延遲100ms後):', {
-          showReport,
-          hasLesson: !!lesson,
-          fullReport: !!fullReport
-        })
-      }, 100)
-
-      // 步驟 4: 保存歷史記錄
-      console.log('  📝 步驟 4/4: 保存歷史記錄')
+      // 步驟 2: 保存歷史記錄
+      console.log('  📝 步驟 2/3: 保存歷史記錄')
       const sessionId = saveToHistory(simpleReport, results, reportSessionIdRef.current)
       if (sessionId) {
         reportSessionIdRef.current = sessionId
         console.log('  ✅ 歷史記錄已保存，sessionId:', sessionId)
       }
 
-      // 背景任務: 生成完整報表 (從後端獲取)
-      console.log('  🔄 背景任務: 調用 generateFullReport')
-      generateFullReport(results, {
-        sessionId: sessionId || undefined,
-        skipImmediateFallback: true
-      })
+      // 步驟 3: 顯示完成慶祝畫面
+      console.log('  📝 步驟 3/3: 顯示完成慶祝畫面 🎉')
+      setShowCompletionCelebration(true)
+      setCountdown(60)
+      console.log('  ✅ 慶祝畫面已啟動!')
 
       console.log('🎉 ========== finalizeLesson 執行完成 ==========')
 
@@ -2142,9 +2237,10 @@ export default function LessonPage() {
         questionId: targetStep.id,
         lessonId: lesson.lesson_id || lessonId,
         prompt: targetStep.teacher,
-        expectedAnswer: Array.isArray(targetStep.expected_answer)
-          ? String(targetStep.expected_answer[0])
-          : String(targetStep.expected_answer),
+        expectedAnswer: targetStep.english_hint ||
+          (Array.isArray(targetStep.expected_answer)
+            ? String(targetStep.expected_answer[0])
+            : String(targetStep.expected_answer)),
         pinyin: Array.isArray(targetStep.pinyin) ? targetStep.pinyin[0] : targetStep.pinyin,
         custom: true,
         deckName: selectedDeck || 'General'
@@ -2214,6 +2310,78 @@ export default function LessonPage() {
         })
       }
     }
+  }
+
+  // 🎉 完成慶祝畫面
+  if (showCompletionCelebration && lesson) {
+    console.log('🎉 ========== 渲染完成慶祝畫面 ==========')
+
+    const avgScore = calculateAverageScore()
+
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 flex items-center justify-center p-4">
+        <div className="max-w-2xl w-full text-center">
+          {/* 主要慶祝訊息 */}
+          <div className="bg-white rounded-3xl shadow-2xl p-12 mb-8 transform hover:scale-105 transition-transform duration-300">
+            <div className="text-8xl mb-6 animate-bounce">🎉</div>
+            <h1 className="text-5xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-purple-600 mb-4">
+              Congratulations on Completing the Lesson!
+            </h1>
+            <h2 className="text-3xl font-semibold text-gray-700 mb-6">
+              {lesson.title}
+            </h2>
+
+            {/* 平均分數顯示 */}
+            <div className="bg-gradient-to-r from-blue-100 to-purple-100 rounded-2xl p-8 mb-6">
+              <div className="text-6xl font-bold text-blue-600 mb-2">
+                {avgScore}
+              </div>
+              <div className="text-xl text-gray-600">
+                Average Score
+              </div>
+            </div>
+
+            {/* 鼓勵訊息 */}
+            <div className="space-y-4 text-lg text-gray-700">
+              <p className="font-semibold text-2xl text-purple-600">
+                Excellent work! You did great!
+              </p>
+              <p>
+                You have successfully completed all practice questions
+              </p>
+              <p className="text-gray-600">
+                Keep up this learning enthusiasm and you'll improve even faster!
+              </p>
+            </div>
+          </div>
+
+          {/* 倒數計時和按鈕 */}
+          <div className="bg-white rounded-2xl shadow-xl p-6">
+            <div className="text-gray-600 mb-4">
+              <div className="text-sm mb-2">Automatically returning to course list in</div>
+              <div className="text-5xl font-bold text-blue-600 mb-2">
+                {countdown}
+              </div>
+              <div className="text-sm">seconds</div>
+            </div>
+
+            <button
+              onClick={() => router.push('/dashboard')}
+              className="w-full px-8 py-4 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white rounded-xl font-bold text-lg transition-all shadow-lg hover:shadow-xl transform hover:scale-105"
+            >
+              Return to Course List Now
+            </button>
+
+            <button
+              onClick={() => router.push('/history')}
+              className="w-full mt-3 px-8 py-3 bg-white hover:bg-gray-50 text-gray-700 border-2 border-gray-300 rounded-xl font-medium text-base transition-all"
+            >
+              View Learning History
+            </button>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   // 報表頁面
@@ -2366,7 +2534,7 @@ export default function LessonPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-blue-50 to-purple-50">
-        <div className="text-xl text-gray-700 animate-pulse">載入課程中...</div>
+        <div className="text-xl text-gray-700 animate-pulse">Loading lesson...</div>
       </div>
     )
   }
@@ -2374,7 +2542,7 @@ export default function LessonPage() {
   if (error || !lesson) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen gap-4 bg-gradient-to-br from-blue-50 to-purple-50">
-        <div className="text-xl text-red-500">{error || '課程不存在'}</div>
+        <div className="text-xl text-red-500">{error || 'Lesson not found'}</div>
         <button
           onClick={() => router.push('/dashboard')}
           className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium text-sm transition-all shadow-sm hover:shadow"
@@ -2606,46 +2774,63 @@ export default function LessonPage() {
         </div>
       )}
 
-      {/* 導航按鈕組 - Previous / Back to Dashboard / Next */}
-      <div className="mt-6 flex items-center justify-center gap-3">
-        <button
-          onClick={handlePreviousQuestion}
-          disabled={currentStepIndex === 0}
-          className={`px-5 py-2.5 rounded-lg font-medium text-sm transition-all shadow-sm hover:shadow flex items-center gap-2 ${
-            currentStepIndex === 0
-              ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-              : 'bg-gray-600 hover:bg-gray-700 text-white'
-          }`}
-          title="Previous Question"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-          </svg>
-          Previous
-        </button>
+      {/* 導航按鈕組 - Previous / Back to Dashboard / Finish / Next */}
+      <div className="mt-6 flex flex-col items-center justify-center gap-3">
+        {/* 上排：主要導航按鈕 */}
+        <div className="flex items-center justify-center gap-3">
+          <button
+            onClick={handlePreviousQuestion}
+            disabled={currentStepIndex === 0}
+            className={`px-5 py-2.5 rounded-lg font-medium text-sm transition-all shadow-sm hover:shadow flex items-center gap-2 ${
+              currentStepIndex === 0
+                ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                : 'bg-gray-600 hover:bg-gray-700 text-white'
+            }`}
+            title="Previous Question"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            </svg>
+            Previous
+          </button>
 
-        <button
-          onClick={() => router.push('/dashboard')}
-          className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium text-sm transition-all shadow-sm hover:shadow"
-        >
-          Back to Dashboard
-        </button>
+          <button
+            onClick={() => router.push('/dashboard')}
+            className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium text-sm transition-all shadow-sm hover:shadow"
+          >
+            Back to Dashboard
+          </button>
 
-        <button
-          onClick={handleManualNextQuestion}
-          disabled={currentStepIndex === lesson.steps.length - 1}
-          className={`px-5 py-2.5 rounded-lg font-medium text-sm transition-all shadow-sm hover:shadow flex items-center gap-2 ${
-            currentStepIndex === lesson.steps.length - 1
-              ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-              : 'bg-gray-600 hover:bg-gray-700 text-white'
-          }`}
-          title="Next Question"
-        >
-          Next
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-          </svg>
-        </button>
+          <button
+            onClick={handleManualNextQuestion}
+            disabled={currentStepIndex === lesson.steps.length - 1}
+            className={`px-5 py-2.5 rounded-lg font-medium text-sm transition-all shadow-sm hover:shadow flex items-center gap-2 ${
+              currentStepIndex === lesson.steps.length - 1
+                ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                : 'bg-gray-600 hover:bg-gray-700 text-white'
+            }`}
+            title="Next Question"
+          >
+            Next
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+            </svg>
+          </button>
+        </div>
+
+        {/* 下排：結束課程按鈕（只在有作答時顯示）*/}
+        {stepResults.length > 0 && (
+          <button
+            onClick={handleFinishLesson}
+            className="px-8 py-2.5 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white rounded-lg font-semibold text-sm transition-all shadow-sm hover:shadow-lg flex items-center gap-2"
+            title="結束課程並查看成績"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            Finish Lesson & View Results ({stepResults.length}/{lesson.steps.length})
+          </button>
+        )}
       </div>
     </div>
   )

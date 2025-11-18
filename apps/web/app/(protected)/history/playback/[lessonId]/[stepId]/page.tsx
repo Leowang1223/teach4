@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter, useParams } from 'next/navigation'
+import { ArrowLeft, Home } from 'lucide-react'
+import { AppButton } from '@/components/ui/AppButton'
 import { getPlaybackQuestion, type PlaybackAttempt } from '../../../utils/playbackStorage'
 
 // Hooks
@@ -122,25 +124,21 @@ export default function PlaybackQuestionPage() {
       <div className="max-w-6xl mx-auto">
         {/* 🆕 雙按鈕：返回報表 + 返回首頁 */}
         <div className="mb-6 flex gap-4">
-          <button
+          <AppButton
+            icon={ArrowLeft}
             onClick={() => router.back()}
-            className="px-4 py-2 bg-white rounded-lg shadow hover:shadow-md transition-all flex items-center gap-2 text-gray-700 hover:text-gray-900"
+            className="max-w-none w-auto"
           >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-            </svg>
-            <span className="font-medium">← Back to Report</span>
-          </button>
-          
-          <button
+            Back to Report
+          </AppButton>
+
+          <AppButton
+            icon={Home}
             onClick={() => router.push('/dashboard')}
-            className="px-4 py-2 bg-gradient-to-r from-blue-500 to-purple-500 text-white rounded-lg hover:from-blue-600 hover:to-purple-600 transition-all shadow-md hover:shadow-lg flex items-center gap-2"
+            className="max-w-none w-auto"
           >
-            <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-              <path d="M10.707 2.293a1 1 0 00-1.414 0l-7 7a1 1 0 001.414 1.414L4 10.414V17a1 1 0 001 1h2a1 1 0 001-1v-2a1 1 0 011-1h2a1 1 0 011 1v2a1 1 0 001 1h2a1 1 0 001-1v-6.586l.293.293a1 1 0 001.414-1.414l-7-7z" />
-            </svg>
-            <span className="font-medium">🏠 Home</span>
-          </button>
+            Home
+          </AppButton>
         </div>
 
         <div className="grid grid-cols-3 gap-6">

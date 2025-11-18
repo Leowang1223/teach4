@@ -34,6 +34,75 @@ interface Chapter {
   lessons: LessonSummary[]
 }
 
+interface LessonHistoryEntry {
+  sessionId: string
+  lessonId: string
+  lessonTitle: string
+  completedAt: string
+  totalScore: number
+  questionsCount: number
+  results: any[]
+}
+
+// 水位杯組件
+function WaterCup({ progress, lessonNumber, isCompleted }: { progress: number; lessonNumber: number; isCompleted: boolean }) {
+  const waterHeight = Math.min(100, Math.max(0, progress))
+
+  return (
+    <div className="relative h-20 w-16">
+      {/* 玻璃杯外框 */}
+      <div className="absolute inset-0 rounded-b-2xl rounded-t-lg border-2 border-blue-300 bg-gradient-to-b from-blue-50/30 to-transparent">
+        {/* 水位 */}
+        <div className="absolute bottom-0 left-0 right-0 overflow-hidden rounded-b-2xl">
+          <div
+            className="transition-all duration-700 ease-out"
+            style={{ height: `${waterHeight}%` }}
+          >
+            {/* 水的漸變效果 */}
+            <div className={`h-full w-full ${
+              isCompleted
+                ? 'bg-gradient-to-t from-blue-500 to-blue-400'
+                : 'bg-gradient-to-t from-blue-300 to-blue-200'
+            }`}>
+              {/* 水波紋效果 */}
+              <div className="h-full w-full opacity-40">
+                <div
+                  className="h-1 w-full bg-white/50 animate-pulse"
+                  style={{
+                    transform: 'translateY(2px)',
+                    animation: 'wave 2s ease-in-out infinite'
+                  }}
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* 課程編號 */}
+        <div className="absolute inset-0 flex items-center justify-center">
+          <span className={`relative z-10 text-lg font-bold ${
+            waterHeight > 50 ? 'text-white drop-shadow-md' : 'text-blue-600'
+          }`}>
+            {lessonNumber}
+          </span>
+        </div>
+
+        {/* 完成徽章 */}
+        {isCompleted && (
+          <div className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-green-500 text-[10px] text-white shadow-lg">
+            ✓
+          </div>
+        )}
+
+        {/* 刻度線 */}
+        <div className="absolute inset-x-0 top-1/4 h-px bg-blue-200/50" />
+        <div className="absolute inset-x-0 top-2/4 h-px bg-blue-200/50" />
+        <div className="absolute inset-x-0 top-3/4 h-px bg-blue-200/50" />
+      </div>
+    </div>
+  )
+}
+
 const NAV_ITEMS = [
   { href: "/dashboard", label: "Dashboard", description: "Overview & path" },
   { href: "/flashcards", label: "Flashcards", description: "Review mistakes" },
@@ -79,6 +148,57 @@ export default function DashboardPage() {
   const [selectedChapter, setSelectedChapter] = useState<string>('C1')
   const [lessons, setLessons] = useState<LessonSummary[]>([])
   const [lessonProgress, setLessonProgress] = useState<Record<string, number>>({})
+
+  // 從 lessonHistory 計算每個課程的完成進度
+  const calculateLessonProgress = (): Record<string, number> => {
+    if (typeof window === 'undefined') return {}
+
+    try {
+      const historyRaw = localStorage.getItem('lessonHistory')
+      if (!historyRaw) return {}
+
+      const history: LessonHistoryEntry[] = JSON.parse(historyRaw)
+      const progressMap: Record<string, number> = {}
+
+      // 為每個課程計算進度
+      console.log('📚 開始計算課程進度，歷史記錄數量:', history.length)
+
+      history.forEach((entry, index) => {
+        const lessonId = entry.lessonId
+        const questionsCount = entry.questionsCount || 0
+        const answeredCount = entry.results?.length || 0
+
+        console.log(`  記錄 ${index + 1}:`, {
+          lessonId,
+          lessonTitle: entry.lessonTitle,
+          questionsCount,
+          answeredCount,
+          completedAt: entry.completedAt
+        })
+
+        if (questionsCount > 0) {
+          // 計算完成百分比
+          const percentage = Math.round((answeredCount / questionsCount) * 100)
+
+          console.log(`    → 計算進度: ${answeredCount}/${questionsCount} = ${percentage}%`)
+
+          // 如果同一課程有多條記錄，取最高進度
+          if (!progressMap[lessonId] || progressMap[lessonId] < percentage) {
+            progressMap[lessonId] = percentage
+            console.log(`    → 更新進度: ${lessonId} = ${percentage}%`)
+          }
+        } else {
+          console.log(`    ⚠️ 跳過: questionsCount = 0`)
+        }
+      })
+
+      console.log('📊 課程進度計算完成:', progressMap)
+      return progressMap
+    } catch (error) {
+      console.error('❌ 計算課程進度失敗:', error)
+      return {}
+    }
+  }
 
   useEffect(() => {
     async function fetchStats() {
@@ -143,8 +263,8 @@ export default function DashboardPage() {
             return numA - numB
           }))
 
-          // 加载进度（从 localStorage）
-          const progressData = JSON.parse(localStorage.getItem('lesson_progress') || '{}')
+          // 加载进度（从 lessonHistory 計算實際完成進度）
+          const progressData = calculateLessonProgress()
           setLessonProgress(progressData)
         }
       } catch (error) {
@@ -174,10 +294,10 @@ export default function DashboardPage() {
   }
 
   const statCards = [
-    { label: "已完成課程", value: stats.lessons.toString() },
-    { label: "平均分數", value: `${stats.avgScore}%` },
-    { label: "等級指數", value: stats.levelIndex.toString() },
-    { label: "連續天數", value: `${stats.streak} 天` },
+    { label: "Completed Lessons", value: stats.lessons.toString() },
+    { label: "Average Score", value: `${stats.avgScore}%` },
+    { label: "Level Index", value: stats.levelIndex.toString() },
+    { label: "Streak Days", value: `${stats.streak} days` },
   ]
 
   return (
@@ -267,9 +387,9 @@ export default function DashboardPage() {
               <div className="flex flex-col gap-1 pr-32">
                 <h2 className="text-sm font-semibold text-slate-800">Talk Learning</h2>
                 <p className="text-[11px] text-slate-500">
-                  沿用實際的情境會話，先感受整體語感與節奏，
-                  <span className="font-medium text-amber-500"> 完成課程後即可在實際情境上加速 </span>
-                  應對，自信開口不怯場。
+                  Experience real conversational scenarios. Feel the overall rhythm and tone.
+                  <span className="font-medium text-amber-500"> After completing courses, you'll respond faster </span>
+                  in actual situations and speak confidently.
                 </p>
               </div>
 
@@ -299,9 +419,9 @@ export default function DashboardPage() {
 
             <section className="space-y-5 rounded-[32px] border border-white bg-white px-8 py-7 shadow-[0_20px_45px_rgba(15,23,42,0.08)]">
               <div className="space-y-3">
-                <h2 className="text-sm font-semibold text-slate-800">中文學習課程路線</h2>
+                <h2 className="text-sm font-semibold text-slate-800">Chinese Learning Course Path</h2>
                 <p className="text-[11px] text-slate-500">
-                  完成每個步驟，課程節奏會幫你從日常對話帶進高難度情境。
+                  Complete each step. The course pace will guide you from daily conversations to advanced scenarios.
                 </p>
 
                 {/* 章节选择器 - 添加横向滚动 */}
@@ -329,33 +449,66 @@ export default function DashboardPage() {
                 )}
               </div>
 
-              {/* 课程卡片 - 添加横向滚动 */}
+              {/* 课程卡片 - 水位杯 UI */}
               <div className="relative -mx-2 px-2">
-                <div className="flex items-end gap-5 overflow-x-auto pb-2 scrollbar-thin scrollbar-track-slate-100 scrollbar-thumb-slate-300 hover:scrollbar-thumb-slate-400">
+                <div className="flex items-end gap-6 overflow-x-auto pb-2 scrollbar-thin scrollbar-track-slate-100 scrollbar-thumb-slate-300 hover:scrollbar-thumb-slate-400">
                   {lessons.filter(l => l.chapterId === selectedChapter).map((lesson) => {
-                    const progress = lessonProgress[lesson.lesson_id] || 0
+                    // 🔧 智能匹配：嘗試多種 ID 格式
+                    let progress = lessonProgress[lesson.lesson_id] || 0
+
+                    // 如果沒找到，嘗試其他可能的格式
+                    if (progress === 0) {
+                      // 嘗試 L1, L2, ... 格式
+                      const altId1 = `L${lesson.lessonNumber}`
+                      if (lessonProgress[altId1]) {
+                        progress = lessonProgress[altId1]
+                        console.log(`✅ 找到替代 ID: ${altId1} = ${progress}%`)
+                      }
+
+                      // 嘗試 C1-1, C1-2, ... 格式
+                      const altId2 = `${lesson.chapterId}-${lesson.lessonNumber}`
+                      if (progress === 0 && lessonProgress[altId2]) {
+                        progress = lessonProgress[altId2]
+                        console.log(`✅ 找到替代 ID: ${altId2} = ${progress}%`)
+                      }
+                    }
+
                     const completed = progress >= 100
+
+                    // 調試日誌
+                    if (lesson.lessonNumber === 1) {
+                      console.log('🔍 L1 課程詳情:', {
+                        lesson_id: lesson.lesson_id,
+                        title: lesson.title,
+                        progress,
+                        completed,
+                        availableProgressKeys: Object.keys(lessonProgress)
+                      })
+                    }
+
                     return (
                       <button
                         key={lesson.lesson_id}
                         onClick={() => handleLessonClick(lesson.lesson_id)}
-                        className="group flex min-w-[90px] flex-shrink-0 flex-col items-center gap-2"
+                        className="group flex min-w-[100px] flex-shrink-0 flex-col items-center gap-3 transition hover:scale-105"
                       >
-                        <div
-                          className={`relative flex h-14 w-14 items-center justify-center rounded-full text-sm font-semibold transition group-hover:scale-110 ${
-                            completed
-                              ? "bg-gradient-to-br from-blue-500 to-blue-600 text-white shadow-[0_12px_30px_rgba(37,99,235,0.45)]"
-                              : "border-[3px] border-blue-200 bg-white text-blue-500"
-                          }`}
-                        >
-                          <span className="relative z-10">{lesson.lessonNumber}</span>
-                          {!completed && <div className="absolute inset-[3px] rounded-full bg-slate-50" />}
-                        </div>
+                        {/* 水位杯 */}
+                        <WaterCup
+                          progress={progress}
+                          lessonNumber={lesson.lessonNumber}
+                          isCompleted={completed}
+                        />
+
+                        {/* 課程資訊 */}
                         <div className="text-center leading-tight">
                           <p className="text-[11px] font-medium text-slate-700 group-hover:text-blue-600">
                             {lesson.title}
                           </p>
-                          <p className="text-[10px] text-slate-400">{completed ? "100%" : `${progress}%`}</p>
+                          <p className={`text-[10px] font-semibold ${
+                            completed ? 'text-green-600' : 'text-blue-500'
+                          }`}>
+                            {completed ? "✓ Complete" : `${progress}%`}
+                          </p>
                         </div>
                       </button>
                     )

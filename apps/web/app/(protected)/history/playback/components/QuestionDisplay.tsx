@@ -22,8 +22,31 @@ export function QuestionDisplay({
   lessonId,
   stepId
 }: QuestionDisplayProps) {
+  // 🔍 調試日誌：確認題目載入
+  console.log('📋 QuestionDisplay 載入:', {
+    lessonId,
+    stepId,
+    questionText,
+    pinyin,
+    englishHint,
+    hasQuestion: !!questionText
+  })
+
   const handlePlayTTS = () => {
+    console.log('🔊 播放 TTS:', questionText)
     TTSService.playText(questionText)
+  }
+
+  // 🔍 檢查題目是否為空
+  if (!questionText) {
+    console.error('❌ 題目文字為空！', { lessonId, stepId })
+    return (
+      <div className="bg-red-50 border border-red-200 rounded-xl p-6 text-red-800">
+        <h3 className="font-bold mb-2">⚠️ 題目載入失敗</h3>
+        <p>題目文字為空，請檢查資料是否正確</p>
+        <pre className="mt-2 text-xs">{JSON.stringify({ lessonId, stepId }, null, 2)}</pre>
+      </div>
+    )
   }
 
   return (
@@ -41,27 +64,28 @@ export function QuestionDisplay({
         <h2 className="text-3xl font-bold text-gray-800 mb-4 text-center">
           {questionText}
         </h2>
-        
+
         {pinyin && (
           <p className="text-xl text-gray-600 text-center mb-2">
             {pinyin}
           </p>
         )}
-        
+
         {englishHint && (
           <p className="text-lg text-blue-600 text-center mb-6">
             💡 {englishHint}
           </p>
         )}
 
-        {/* TTS 播放按鈕 */}
-        <div className="flex justify-center mb-6">
-          <button
+        {/* TTS 播放按鈕 - 使用 AppButton */}
+        <div className="flex justify-center">
+          <AppButton
+            icon={Volume2}
             onClick={handlePlayTTS}
-            className="px-8 py-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-lg font-semibold flex items-center gap-2 transition-colors"
+            className="max-w-none w-auto px-8 py-4"
           >
-            🔊 Listen to Question
-          </button>
+            Listen to Question
+          </AppButton>
         </div>
       </div>
     </div>

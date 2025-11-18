@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Radar } from 'react-chartjs-2'
-import { RefreshCw, Trash2, Layers, BookOpen, X } from 'lucide-react'
+import { RefreshCw, Trash2, Layers, BookOpen, X, ArrowLeft, Home } from 'lucide-react'
 import {
   Chart as ChartJS,
   RadialLinearScale,
@@ -147,12 +147,13 @@ export default function HistoryPage() {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-purple-50 p-8">
         <div className="max-w-5xl mx-auto bg-white rounded-2xl shadow-2xl p-8">
-          <button
+          <AppButton
+            icon={ArrowLeft}
             onClick={() => setSelectedSession(null)}
-            className="mb-6 px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors"
+            className="mb-6 max-w-none w-auto"
           >
-            ← Back to History
-          </button>
+            Back to History
+          </AppButton>
 
           <div className="text-center mb-8">
             <h1 className="text-3xl font-bold text-gray-800 mb-2">
@@ -294,12 +295,13 @@ export default function HistoryPage() {
                 Clear All
               </AppButton>
             )}
-            <button
+            <AppButton
+              icon={Home}
               onClick={() => router.push('/dashboard')}
-              className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600"
+              className="max-w-none w-auto px-5"
             >
-              ← Dashboard
-            </button>
+              Dashboard
+            </AppButton>
           </div>
         </div>
 

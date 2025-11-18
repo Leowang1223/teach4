@@ -64,9 +64,9 @@ export function usePlaybackQuestion(lessonId: string, stepId: number): UsePlayba
               if (q) {
                 setQuestion({
                   ...q,
-                  questionText: step.chinese || q.questionText,
+                  questionText: step.teacher || q.questionText,
                   pinyin: step.pinyin || q.pinyin,
-                  englishHint: step.english || q.englishHint,
+                  englishHint: step.english_hint || q.englishHint,
                   expectedAnswer: step.expected_answer || q.expectedAnswer,
                   videoUrl: step.video_url
                 })
@@ -75,9 +75,9 @@ export function usePlaybackQuestion(lessonId: string, stepId: number): UsePlayba
                 console.log('Creating question from API data...')
                 setQuestion({
                   stepId: stepId,
-                  questionText: step.chinese || '',
+                  questionText: step.teacher || '',
                   pinyin: step.pinyin || '',
-                  englishHint: step.english || '',
+                  englishHint: step.english_hint || '',
                   expectedAnswer: step.expected_answer || '',
                   videoUrl: step.video_url,
                   attempts: [],

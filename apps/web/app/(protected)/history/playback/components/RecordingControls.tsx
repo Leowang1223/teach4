@@ -1,9 +1,9 @@
-﻿import { AppButton } from '@/components/ui/AppButton'
+import { AppButton } from '@/components/ui/AppButton'
 import { Mic, Play, Square } from 'lucide-react'
 
 /**
- * ??批蝯辣
- * ????整閰?蝑???
+ * 錄音控制組件
+ * 管理錄音、播放和提交流程
  */
 
 interface RecordingControlsProps {
@@ -25,39 +25,51 @@ export function RecordingControls({
   onStopRecording,
   onPlayRecording
 }: RecordingControlsProps) {
+  // 🔍 調試日誌
+  console.log('🎙️ RecordingControls 狀態:', {
+    isRecording,
+    isPlaying,
+    hasAudio: !!audioBlob,
+    isSubmitting
+  })
+
   return (
     <div className="bg-white rounded-xl shadow-lg p-8">
-      <h3 className="text-xl font-bold text-gray-800 mb-6">? Recording Controls</h3>
-      
+      <h3 className="text-xl font-bold text-gray-800 mb-6">🎙️ Recording Controls</h3>
+
       <div className="space-y-4">
-        {/* ?剜??? */}
+        {/* 播放錄音 */}
         {audioBlob && (
           <AppButton
             icon={Play}
             onClick={onPlayRecording}
             disabled={isPlaying || isRecording}
-            className="max-w-none w-full disabled:opacity-60 disabled:cursor-not-allowed"
+            className="max-w-none w-full"
           >
             {isPlaying ? 'Playing…' : 'Listen to My Recording'}
           </AppButton>
         )}
 
-        {/* ??? */}
+        {/* 錄音按鈕 - 使用 AppButton */}
         {!isRecording ? (
-          <button
+          <AppButton
+            icon={Mic}
             onClick={onStartRecording}
             disabled={isSubmitting}
-            className="w-full px-6 py-4 bg-red-500 text-white rounded-lg hover:bg-red-600 text-lg font-semibold transition-all disabled:bg-gray-300 disabled:cursor-not-allowed"
+            variant="danger"
+            className="max-w-none w-full px-6 py-4"
           >
-            ? Start Recording
-          </button>
+            Start Recording
+          </AppButton>
         ) : (
-          <button
+          <AppButton
+            icon={Square}
             onClick={onStopRecording}
-            className="w-full px-6 py-4 bg-red-600 text-white rounded-lg hover:bg-red-700 text-lg font-semibold animate-pulse"
+            variant="danger"
+            className="max-w-none w-full px-6 py-4 animate-pulse"
           >
-            ?對? Stop Recording
-          </button>
+            Stop Recording
+          </AppButton>
         )}
 
         {isSubmitting && (
@@ -70,5 +82,3 @@ export function RecordingControls({
     </div>
   )
 }
-
-

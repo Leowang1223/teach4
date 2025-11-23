@@ -25,6 +25,9 @@ import { addOrUpdateFlashcard, getDeckNames as getFlashcardDecks, addDeckName as
 import { AppButton } from '@/components/ui/AppButton'
 import { BookmarkPlus } from 'lucide-react'
 
+// 講師選擇器
+import { InterviewerSelector, getInterviewerImagePath, getInterviewerVoice, DEFAULT_INTERVIEWER } from '../components/InterviewerSelector'
+
 // 🔧 字串相似度計算工具（Levenshtein Distance）
 function normalizeText(text: string): string {
   return (text || '')
@@ -957,7 +960,11 @@ export default function LessonPage() {
   
   // 🔧 新增：錄音錯誤狀態（取代 alert）
   const [recordingError, setRecordingError] = useState<string | null>(null)
-  
+
+  // 👤 講師選擇相關
+  const [currentInterviewer, setCurrentInterviewer] = useState<string>(DEFAULT_INTERVIEWER)
+  const [showInterviewerSelector, setShowInterviewerSelector] = useState(false)
+
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
   const audioChunksRef = useRef<Blob[]>([])
   const videoRef = useRef<HTMLVideoElement>(null)
@@ -1046,6 +1053,36 @@ export default function LessonPage() {
     }
   }, [])
 
+  // 👤 從 localStorage 讀取講師選擇
+  useEffect(() => {
+    const savedInterviewer = localStorage.getItem('selectedInterviewer')
+    if (savedInterviewer) {
+      setCurrentInterviewer(savedInterviewer)
+    }
+  }, [])
+
+  // 👤 處理講師選擇
+  const handleSelectInterviewer = (interviewerId: string) => {
+    setCurrentInterviewer(interviewerId)
+    localStorage.setItem('selectedInterviewer', interviewerId)
+    console.log('✅ Interviewer changed to:', interviewerId)
+  }
+
+  // 🎤 當講師切換時，重新播放當前題目的 TTS
+  useEffect(() => {
+    if (!lesson || sessionState !== 'question') return
+
+    const currentStepData = lesson.steps[currentStepIndex]
+    if (!currentStepData) return
+
+    // 如果當前題目沒有影片，重新播放 TTS（使用新講師的聲音）
+    if (!currentStepData.video_url) {
+      const ttsText = currentStepData.tts_text || currentStepData.teacher
+      playTTS(ttsText)
+      console.log('🎤 Replaying TTS with new interviewer voice:', currentInterviewer)
+    }
+  }, [currentInterviewer]) // 只監聽講師切換
+
   // 🔧 修復：分離中文和英文，使用不同的 TTS，保持順序
   const playTTS = (text: string) => {
     if (!('speechSynthesis' in window)) return
@@ -1064,69 +1101,87 @@ export default function LessonPage() {
     }
 
     const segments: TextSegment[] = []
-    
+
     // 使用正則匹配中英文，並保持順序
     const pattern = /([a-zA-Z\s.,!?'"-]+)|([^a-zA-Z\s.,!?'"-]+)/g
     let match
-    
+
     while ((match = pattern.exec(cleanText)) !== null) {
       const text = match[0].trim()
       if (!text) continue
-      
+
       const isChinese = !match[1] // 如果不是英文組，就是中文
       segments.push({ text, isChinese })
     }
 
+    // 🎤 獲取當前講師的語音配置
+    const voiceConfig = getInterviewerVoice(currentInterviewer)
+
     // 獲取語音引擎
     const voices = window.speechSynthesis.getVoices()
-    
+
     // 選擇英文語音
-    const englishVoice = voices.find(voice => 
-      voice.lang === 'en-US' && 
-      (voice.name.includes('Google') || 
+    const englishVoice = voices.find(voice =>
+      voice.lang === 'en-US' &&
+      (voice.name.includes('Google') ||
        voice.name.includes('Microsoft') ||
        voice.name.includes('Natural'))
     ) || voices.find(voice => voice.lang.startsWith('en'))
-    
-    // 選擇台灣中文語音
-    const preferredVoices = [
-      'Microsoft HsiaoChen - Chinese (Taiwan)',
-      'Microsoft Yating - Chinese (Taiwan)',
-      'Google 國語（臺灣）',
-      'Mei-Jia',
-      'Sin-ji',
-      'Ting-Ting'
-    ]
-    
-    let chineseVoice = voices.find(voice => 
-      preferredVoices.some(preferred => voice.name.includes(preferred))
-    )
-    
+
+    // 🎤 選擇中文語音：優先使用講師的指定語音
+    let chineseVoice: SpeechSynthesisVoice | undefined
+
+    // 1. 嘗試使用講師的首選語音名稱
+    if (voiceConfig.preferredVoiceName) {
+      chineseVoice = voices.find(voice =>
+        voice.name === voiceConfig.preferredVoiceName ||
+        voice.name.includes(voiceConfig.preferredVoiceName)
+      )
+    }
+
+    // 2. 如果找不到首選語音，根據語言和性別選擇
     if (!chineseVoice) {
-      chineseVoice = voices.find(voice => 
-        voice.lang.includes('zh-TW') || 
+      chineseVoice = voices.find(voice => {
+        const langMatch = voice.lang.includes(voiceConfig.lang.split('-')[0])
+        const genderMatch = voiceConfig.gender === 'female'
+          ? (voice.name.includes('Female') || voice.name.includes('female') ||
+             voice.name.includes('女') || voice.name.includes('Chen') ||
+             voice.name.includes('Xiao') || voice.name.includes('Mei'))
+          : (voice.name.includes('Male') || voice.name.includes('male') ||
+             voice.name.includes('男') || voice.name.includes('Yun') ||
+             voice.name.includes('Chuan'))
+        return langMatch && genderMatch
+      })
+    }
+
+    // 3. 備用方案：按語言選擇
+    if (!chineseVoice) {
+      chineseVoice = voices.find(voice =>
+        voice.lang.includes(voiceConfig.lang) ||
+        voice.lang.includes('zh-TW') ||
         voice.lang.includes('zh-Hant') ||
         voice.name.includes('Taiwan') ||
         voice.name.includes('臺灣')
       )
     }
-    
+
+    // 4. 最終備用：任何中文語音
     if (!chineseVoice) {
       chineseVoice = voices.find(voice => voice.lang.includes('zh'))
     }
 
     // 🔧 按順序播放每個段落，使用正確的語音引擎
     let currentUtterance: SpeechSynthesisUtterance | null = null
-    
+
     segments.forEach((segment, index) => {
       const utterance = new SpeechSynthesisUtterance(segment.text)
-      
+
       if (segment.isChinese) {
-        // 中文段落
+        // 🎤 中文段落：使用講師的語音配置
         if (chineseVoice) utterance.voice = chineseVoice
-        utterance.lang = 'zh-TW'
-        utterance.rate = 0.85
-        utterance.pitch = 1.05
+        utterance.lang = voiceConfig.lang
+        utterance.rate = voiceConfig.rate
+        utterance.pitch = voiceConfig.pitch
       } else {
         // 英文段落
         if (englishVoice) utterance.voice = englishVoice
@@ -1134,16 +1189,16 @@ export default function LessonPage() {
         utterance.rate = 0.9
         utterance.pitch = 1.0
       }
-      
+
       utterance.volume = 1.0
-      
+
       // 🔧 使用 onend 事件鏈接下一個段落，確保順序播放
       if (index < segments.length - 1) {
         utterance.onend = () => {
           // 播放完成後自動播放下一個
         }
       }
-      
+
       window.speechSynthesis.speak(utterance)
       currentUtterance = utterance
     })
@@ -2573,9 +2628,36 @@ export default function LessonPage() {
       </div>
 
       <div className="mb-6 relative">
-        <div className="w-80 h-80 relative rounded-2xl overflow-hidden shadow-2xl">
-          <Image src="/interviewers/woman.png" alt="Teacher" fill className="object-cover" priority />
-        </div>
+        {/* 講師圖片 - 可點擊切換 */}
+        <button
+          onClick={() => setShowInterviewerSelector(true)}
+          className="group relative w-80 h-80 rounded-2xl overflow-hidden shadow-2xl transition-all hover:shadow-3xl hover:scale-105 focus:outline-none focus:ring-4 focus:ring-blue-400"
+          title="Click to change interviewer"
+        >
+          <Image
+            src={getInterviewerImagePath(currentInterviewer)}
+            alt="Interviewer"
+            fill
+            className="object-cover"
+            priority
+          />
+
+          {/* 懸停提示 */}
+          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-all flex items-center justify-center">
+            <div className="opacity-0 group-hover:opacity-100 transition-opacity bg-white rounded-full p-3 shadow-lg">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+              </svg>
+            </div>
+          </div>
+
+          {/* 角落切換圖標 */}
+          <div className="absolute top-3 right-3 bg-white/90 rounded-full p-2 shadow-md opacity-70 group-hover:opacity-100 transition-opacity">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+            </svg>
+          </div>
+        </button>
       </div>
 
       {/* 🎥 視頻播放器（當有 video_url 時顯示） */}
@@ -2832,6 +2914,15 @@ export default function LessonPage() {
           </button>
         )}
       </div>
+
+      {/* 👤 講師選擇器 */}
+      {showInterviewerSelector && (
+        <InterviewerSelector
+          currentInterviewer={currentInterviewer}
+          onSelect={handleSelectInterviewer}
+          onClose={() => setShowInterviewerSelector(false)}
+        />
+      )}
     </div>
   )
 }

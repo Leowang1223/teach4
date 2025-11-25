@@ -59,14 +59,9 @@ export default function TopBar({ onEndInterview, onCleanupResources }: TopBarPro
               <ArrowLeft className="w-5 h-5" />
             </button>
             <div className="flex items-center flex-shrink-0">
-              <Image
-                src="/logo/interviewPlus_logo.png"
-                alt="InterviewPlus Logo"
-                width={150}
-                height={40}
-                className="h-8 w-auto"
-                priority
-              />
+              <div className="text-xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+                Talk Learning
+              </div>
             </div>
           </div>
         </div>

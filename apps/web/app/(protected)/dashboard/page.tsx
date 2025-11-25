@@ -105,6 +105,7 @@ function WaterCup({ progress, lessonNumber, isCompleted }: { progress: number; l
 
 const NAV_ITEMS = [
   { href: "/dashboard", label: "Dashboard", description: "Overview & path" },
+  { href: "/conversation", label: "AI Conversation", description: "Practice with AI" },
   { href: "/flashcards", label: "Flashcards", description: "Review mistakes" },
   { href: "/history", label: "History", description: "Reports & playback" },
 ]

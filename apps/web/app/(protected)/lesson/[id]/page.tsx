@@ -1133,9 +1133,10 @@ export default function LessonPage() {
 
     // 1. 嘗試使用講師的首選語音名稱
     if (voiceConfig.preferredVoiceName) {
+      const preferredName = voiceConfig.preferredVoiceName
       chineseVoice = voices.find(voice =>
-        voice.name === voiceConfig.preferredVoiceName ||
-        voice.name.includes(voiceConfig.preferredVoiceName)
+        voice.name === preferredName ||
+        voice.name.includes(preferredName)
       )
     }
 

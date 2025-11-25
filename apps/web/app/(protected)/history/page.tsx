@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Radar } from 'react-chartjs-2'
-import { RefreshCw, Trash2, Layers, BookOpen, X, ArrowLeft, Home } from 'lucide-react'
+import { RefreshCw, Trash2, Layers, BookOpen, X, ArrowLeft, Home, MessageSquare } from 'lucide-react'
 import {
   Chart as ChartJS,
   RadialLinearScale,
@@ -63,11 +63,30 @@ interface LessonHistory {
   }>
 }
 
+interface ConversationHistory {
+  sessionId: string
+  type: 'conversation'
+  completedAt: string
+  messages: number
+  reportId: string
+  settings: any
+  conversationData?: {
+    turns: Array<{ role: string; text: string; timestamp: Date }>
+    analysis?: {
+      overallScore: number
+      feedback: string
+      suggestions: string[]
+    }
+  }
+}
+
 export default function HistoryPage() {
   const router = useRouter()
   const [history, setHistory] = useState<LessonHistory[]>([])
+  const [conversationHistory, setConversationHistory] = useState<ConversationHistory[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedSession, setSelectedSession] = useState<LessonHistory | null>(null)
+  const [historyType, setHistoryType] = useState<'lessons' | 'conversations'>('lessons')
 
   useEffect(() => {
     try {
@@ -75,7 +94,16 @@ export default function HistoryPage() {
       const savedHistory = localStorage.getItem('lessonHistory')
       if (savedHistory) {
         const parsed = JSON.parse(savedHistory)
-        setHistory(parsed.sort((a: LessonHistory, b: LessonHistory) => 
+        setHistory(parsed.sort((a: LessonHistory, b: LessonHistory) =>
+          new Date(b.completedAt).getTime() - new Date(a.completedAt).getTime()
+        ))
+      }
+
+      // 載入對話歷史
+      const savedConversations = localStorage.getItem('conversationHistory')
+      if (savedConversations) {
+        const parsed = JSON.parse(savedConversations)
+        setConversationHistory(parsed.sort((a: ConversationHistory, b: ConversationHistory) =>
           new Date(b.completedAt).getTime() - new Date(a.completedAt).getTime()
         ))
       }
@@ -305,8 +333,32 @@ export default function HistoryPage() {
           </div>
         </div>
 
+        {/* Filter Tabs */}
+        <div className="flex gap-4 mb-6">
+          <button
+            onClick={() => setHistoryType('lessons')}
+            className={`flex-1 rounded-xl py-3 px-6 font-semibold transition-all ${
+              historyType === 'lessons'
+                ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg'
+                : 'bg-white text-gray-600 hover:bg-gray-50'
+            }`}
+          >
+            Lessons ({history.length})
+          </button>
+          <button
+            onClick={() => setHistoryType('conversations')}
+            className={`flex-1 rounded-xl py-3 px-6 font-semibold transition-all ${
+              historyType === 'conversations'
+                ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg'
+                : 'bg-white text-gray-600 hover:bg-gray-50'
+            }`}
+          >
+            Conversations ({conversationHistory.length})
+          </button>
+        </div>
+
         {/* 學習歷史 */}
-        {history.length === 0 ? (
+        {historyType === 'lessons' && history.length === 0 ? (
             <div className='text-center py-20'>
               <div className='text-6xl mb-4'>📭</div>
               <h2 className='text-2xl font-bold text-gray-700 mb-2'>No Learning History</h2>
@@ -319,7 +371,7 @@ export default function HistoryPage() {
                 Start Learning
               </AppButton>
             </div>
-          ) : (
+          ) : historyType === 'lessons' ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {history.map((session) => (
                 <div
@@ -373,6 +425,93 @@ export default function HistoryPage() {
                       onClick={(e) => {
                         e.stopPropagation()
                         deleteSession(session.sessionId)
+                      }}
+                      className="max-w-none w-full"
+                    >
+                      Delete
+                    </AppButton>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : conversationHistory.length === 0 ? (
+            <div className='text-center py-20'>
+              <div className='text-6xl mb-4'>💬</div>
+              <h2 className='text-2xl font-bold text-gray-700 mb-2'>No Conversation History</h2>
+              <p className='text-gray-600 mb-6'>Start an AI conversation to practice!</p>
+              <AppButton
+                icon={MessageSquare}
+                onClick={() => router.push('/conversation')}
+                className="max-w-none w-auto"
+              >
+                Start Conversation
+              </AppButton>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {conversationHistory.map((convo) => (
+                <div
+                  key={convo.sessionId}
+                  className="bg-white rounded-xl shadow-lg hover:shadow-2xl transition-all cursor-pointer transform hover:scale-105 p-6"
+                >
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="w-16 h-16 bg-gradient-to-br from-green-500 to-teal-500 rounded-full flex items-center justify-center">
+                      <MessageSquare className="h-8 w-8 text-white" />
+                    </div>
+                  </div>
+
+                  <h3 className="text-xl font-bold text-gray-800 mb-2">
+                    AI Conversation
+                  </h3>
+
+                  <div className="space-y-2 text-sm text-gray-600 mb-4">
+                    <div className="flex justify-between">
+                      <span>Messages:</span>
+                      <span className="font-semibold">{convo.messages}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Mode:</span>
+                      <span className="font-semibold capitalize">
+                        {convo.settings?.topicMode || 'Free'}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Completed:</span>
+                      <span className="font-semibold">
+                        {new Date(convo.completedAt).toLocaleDateString()}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-col gap-2">
+                    <AppButton
+                      icon={BookOpen}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        const summary = `Conversation Summary\n\n` +
+                          `Messages: ${convo.messages}\n` +
+                          `Mode: ${convo.settings?.topicMode || 'Unknown'}\n` +
+                          `Completed: ${new Date(convo.completedAt).toLocaleString()}\n\n` +
+                          (convo.conversationData?.analysis ?
+                            `Score: ${convo.conversationData.analysis.overallScore}\n` +
+                            `Feedback: ${convo.conversationData.analysis.feedback}` :
+                            'Analysis data not available for past conversations.')
+                        alert(summary)
+                      }}
+                      className="max-w-none w-full"
+                    >
+                      View Summary
+                    </AppButton>
+                    <AppButton
+                      icon={Trash2}
+                      variant="danger"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        if (confirm('Delete this conversation record?')) {
+                          const newHistory = conversationHistory.filter(c => c.sessionId !== convo.sessionId)
+                          localStorage.setItem('conversationHistory', JSON.stringify(newHistory))
+                          setConversationHistory(newHistory)
+                        }
                       }}
                       className="max-w-none w-full"
                     >

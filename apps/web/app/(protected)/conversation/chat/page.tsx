@@ -9,7 +9,7 @@ import { InterviewerSelector, getInterviewerImagePath, getInterviewerVoice, DEFA
 import { API_BASE } from '../../config'
 import ProgressTracker from '../components/ProgressTracker'
 import CompletionPrompt from '../components/CompletionPrompt'
-import { type ScenarioCheckpoint } from '@/lib/api'
+import { type ScenarioCheckpoint, apiGetScenarioById } from '@/lib/api'
 
 // TTS utility functions (copied from lesson page)
 function removePinyin(text: string): string {
@@ -82,6 +82,7 @@ export default function ConversationChatPage() {
     objective: string
     userRole: string
     aiRole: string
+    interviewerImage?: string
   } | null>(null)
   const [checkpoints, setCheckpoints] = useState<ScenarioCheckpoint[]>([])
   const [allCheckpointsCompleted, setAllCheckpointsCompleted] = useState(false)
@@ -316,12 +317,26 @@ export default function ConversationChatPage() {
 
       // Set scenario info and checkpoints if in scenario mode
       if (data.scenario) {
+        // Fetch full scenario data to get interviewer information
+        const scenarioData = await apiGetScenarioById(data.scenario.scenarioId)
+        const fullScenario = scenarioData.scenario
+
+        // Find the AI role
+        const aiRole = fullScenario.roles.find((r: any) => r.id !== data.scenario.userRole)
+
+        // Auto-set interviewer if AI role has interviewerId
+        if (aiRole?.interviewerId) {
+          setCurrentInterviewer(aiRole.interviewerId)
+          console.log(`🎭 Auto-selected interviewer: ${aiRole.interviewerId} for role ${aiRole.id}`)
+        }
+
         setScenarioInfo({
           scenarioId: data.scenario.scenarioId,
           title: data.scenario.title,
           objective: data.scenario.objective,
           userRole: data.scenario.userRole,
           aiRole: data.scenario.aiRole,
+          interviewerImage: aiRole?.interviewerImage,
         })
         setCheckpoints(data.scenario.checkpoints)
       }
@@ -654,23 +669,57 @@ export default function ConversationChatPage() {
         {/* Left: Video Area (60%) */}
         <div className="relative flex w-3/5 flex-col bg-gray-900">
           {/* Instructor - Fill entire area */}
-          <button
-            onClick={() => setShowInterviewerSelector(true)}
-            className="group relative h-full w-full overflow-hidden"
-          >
-            <Image
-              src={getInterviewerImagePath(currentInterviewer)}
-              alt="AI Instructor"
-              fill
-              className="object-cover"
-              priority
-            />
-            <div className="absolute inset-0 bg-black/0 transition-all group-hover:bg-black/30 flex items-center justify-center">
-              <span className="text-sm font-medium text-white opacity-0 group-hover:opacity-100">
-                Change Instructor
-              </span>
+          {settings.topicMode === 'scenario' ? (
+            /* Scenario mode: Fixed interviewer, no selection */
+            <div className="relative h-full w-full overflow-hidden">
+              <Image
+                src={scenarioInfo?.interviewerImage ? `/interviewers/${scenarioInfo.interviewerImage}` : getInterviewerImagePath(currentInterviewer)}
+                alt="AI Role"
+                fill
+                className="object-cover"
+                priority
+              />
+              {scenarioInfo?.interviewerImage && (
+                <div className="absolute bottom-4 left-4 bg-blue-900/90 backdrop-blur-sm rounded-lg px-4 py-3 shadow-lg">
+                  <div className="flex items-center gap-3">
+                    <div className="relative w-12 h-12 rounded-full overflow-hidden border-2 border-blue-300">
+                      <Image
+                        src={`/interviewers/${scenarioInfo.interviewerImage}`}
+                        alt="AI Role"
+                        fill
+                        className="object-cover"
+                      />
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold text-white">AI Role</p>
+                      <p className="text-xs text-blue-200">
+                        {scenarioInfo.aiRole}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
-          </button>
+          ) : (
+            /* Normal mode: Clickable interviewer selector */
+            <button
+              onClick={() => setShowInterviewerSelector(true)}
+              className="group relative h-full w-full overflow-hidden"
+            >
+              <Image
+                src={getInterviewerImagePath(currentInterviewer)}
+                alt="AI Instructor"
+                fill
+                className="object-cover"
+                priority
+              />
+              <div className="absolute inset-0 bg-black/0 transition-all group-hover:bg-black/30 flex items-center justify-center">
+                <span className="text-sm font-medium text-white opacity-0 group-hover:opacity-100">
+                  Change Instructor
+                </span>
+              </div>
+            </button>
+          )}
 
           {/* User Video - Top Right Corner (if enabled) */}
           {settings.enableCamera && (

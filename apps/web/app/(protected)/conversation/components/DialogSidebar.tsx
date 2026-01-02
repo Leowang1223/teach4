@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import Image from 'next/image'
 import { Volume2, User, Bot, ChevronUp, ChevronDown } from 'lucide-react'
 import { SuggestionCard } from './SuggestionCard'
 import ProgressTracker from './ProgressTracker'
@@ -29,6 +30,7 @@ interface DialogSidebarProps {
   scenarioInfo?: {
     title: string
     objective: string
+    interviewerImage?: string
   } | null
   checkpoints?: ScenarioCheckpoint[]
 }
@@ -94,16 +96,24 @@ export function DialogSidebar({ messages, suggestions, onPlayTTS, isLoading, sce
             >
               {/* Avatar */}
               <div
-                className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${
+                className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full overflow-hidden ${
                   message.role === 'instructor'
-                    ? 'bg-blue-100 text-blue-600'
-                    : 'bg-gray-100 text-gray-600'
+                    ? 'bg-blue-100'
+                    : 'bg-gray-100'
                 }`}
               >
-                {message.role === 'instructor' ? (
-                  <Bot className="h-5 w-5" />
+                {message.role === 'instructor' && scenarioInfo?.interviewerImage ? (
+                  <Image
+                    src={`/interviewers/${scenarioInfo.interviewerImage}`}
+                    alt="AI Instructor"
+                    width={32}
+                    height={32}
+                    className="object-cover w-full h-full"
+                  />
+                ) : message.role === 'instructor' ? (
+                  <Bot className="h-5 w-5 text-blue-600" />
                 ) : (
-                  <User className="h-5 w-5" />
+                  <User className="h-5 w-5 text-gray-600" />
                 )}
               </div>
 

@@ -178,6 +178,8 @@ export interface Scenario {
     name: string
     chineseName: string
     systemPrompt: string
+    interviewerImage?: string
+    interviewerId?: string
   }>
   suggestions: {
     byRole: Record<string, Array<{

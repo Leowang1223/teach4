@@ -2376,7 +2376,7 @@ export default function LessonPage() {
 
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 flex items-center justify-center p-4">
-        <div className="max-w-2xl w-full text-center">
+        <div className="w-full text-center">
           {/* 主要慶祝訊息 */}
           <div className="bg-white rounded-3xl shadow-2xl p-12 mb-8 transform hover:scale-105 transition-transform duration-300">
             <div className="text-8xl mb-6 animate-bounce">🎉</div>
@@ -2467,7 +2467,7 @@ export default function LessonPage() {
     
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-purple-50 p-8">
-        <div className="max-w-5xl mx-auto bg-white rounded-2xl shadow-2xl p-8">
+        <div className="w-full bg-white rounded-2xl shadow-2xl p-8">
           <div className="text-center mb-8">
             <h1 className="text-3xl font-bold text-gray-800 mb-2">
               🎉 Course Completion Report

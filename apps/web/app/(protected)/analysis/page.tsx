@@ -176,7 +176,7 @@ export default function AnalyzePage(){
       </div>
       
       <div className="pt-12 px-6 py-8">
-        <div className="max-w-4xl mx-auto" ref={reportRef}>
+        <div className="w-full" ref={reportRef}>
           
           {/* 報告標題 */}
           <div className="text-center mb-16 mt-8">

@@ -284,9 +284,21 @@ export default function ConversationChatPage() {
         requestBody.completedLessons = completedLessons
         console.log('📚 Review mode (all): Sending', completedLessons.length, 'completed lessons')
       } else if (loadedSettings.topicMode === 'selected') {
-        // 使用已選擇的章節
+        // 從 localStorage 讀取已完成課程清單
+        const lessonHistory = JSON.parse(localStorage.getItem('lessonHistory') || '[]')
+        const allCompletedLessons = lessonHistory.map((h: any) => h.lessonId)
+
+        // 過濾出屬於選定章節的已完成課程
+        const selectedChaptersSet = new Set(loadedSettings.selectedTopics)
+        const completedLessonsInSelectedChapters = allCompletedLessons.filter((lessonId: string) => {
+          const chapterId = lessonId.split('-')[0]
+          return selectedChaptersSet.has(chapterId)
+        })
+
         requestBody.selectedChapters = loadedSettings.selectedTopics || []
+        requestBody.completedLessons = completedLessonsInSelectedChapters
         console.log('📚 Review mode (selected): Sending chapters', requestBody.selectedChapters)
+        console.log('📚 Review mode (selected): Found', completedLessonsInSelectedChapters.length, 'completed lessons in these chapters')
       }
 
       const response = await fetch(`${API_BASE}/api/conversation/start`, {
@@ -326,12 +338,29 @@ export default function ConversationChatPage() {
         }
         setMessages([firstMessage])
 
-        // Play TTS with a small delay to ensure voices are loaded
+        // Play TTS with dynamic voice detection
         console.log('🎬 Preparing to play first message TTS...')
-        setTimeout(() => {
-          console.log('🔊 Playing first message:', data.firstMessage.chinese.substring(0, 30) + '...')
+        const playFirstMessageTTS = async () => {
+          let attempts = 0
+          const maxAttempts = 20  // 最多等待 2 秒
+
+          while (attempts < maxAttempts) {
+            const voices = window.speechSynthesis.getVoices()
+            if (voices.length > 0) {
+              console.log('✅ TTS voices loaded, playing first message')
+              playTTS(data.firstMessage.chinese)
+              return
+            }
+            await new Promise(r => setTimeout(r, 100))
+            attempts++
+          }
+
+          // 超時仍播放，使用默認聲音
+          console.warn('⚠️ TTS voices not ready after 2s, playing with default voice')
           playTTS(data.firstMessage.chinese)
-        }, 200)
+        }
+
+        playFirstMessageTTS()
       } else {
         // User speaks first - no initial message
         setMessages([])

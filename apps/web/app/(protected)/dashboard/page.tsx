@@ -2,7 +2,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { usePathname, useRouter } from "next/navigation"
+import { useRouter } from "next/navigation"
 
 interface StatsState {
   lessons: number
@@ -111,12 +111,6 @@ function WaterCup({ progress, lessonNumber, isCompleted }: { progress: number; l
   )
 }
 
-const NAV_ITEMS = [
-  { href: "/dashboard", label: "Dashboard", description: "Overview & path" },
-  { href: "/conversation", label: "AI Conversation", description: "Practice with AI" },
-  { href: "/flashcards", label: "Flashcards", description: "Review mistakes" },
-  { href: "/history", label: "History", description: "Reports & playback" },
-]
 
 const CHAPTER_TITLES: Record<string, string> = {
   'C1': 'Chapter 1: Basic Chinese',
@@ -146,7 +140,6 @@ const CHAPTER_DESCRIPTIONS: Record<string, string> = {
 
 export default function DashboardPage() {
   const router = useRouter()
-  const pathname = usePathname()
   const [stats, setStats] = useState<StatsState>({
     lessons: 5,
     avgScore: 81,
@@ -209,30 +202,135 @@ export default function DashboardPage() {
     }
   }
 
-  useEffect(() => {
-    async function fetchStats() {
-      try {
-        const apiBase =
-          (typeof window !== "undefined" && localStorage.getItem("api_base")) ||
-          process.env.NEXT_PUBLIC_API_BASE ||
-          "http://localhost:8082"
+  // 從 lessonHistory 計算統計數據
+  const calculateStats = (): StatsState => {
+    if (typeof window === 'undefined') {
+      return { lessons: 0, avgScore: 0, levelIndex: 0, streak: 0 }
+    }
 
-        const response = await fetch(`${apiBase}/api/stats`)
-        if (response.ok) {
-          const data = await response.json()
-          setStats({
-            lessons: data.lessons ?? 5,
-            avgScore: data.avgScore ?? 81,
-            levelIndex: data.levelIndex ?? 1.3,
-            streak: data.streak ?? 3,
-          })
+    try {
+      const historyRaw = localStorage.getItem('lessonHistory')
+      if (!historyRaw) {
+        return { lessons: 0, avgScore: 0, levelIndex: 0, streak: 0 }
+      }
+
+      const history: LessonHistoryEntry[] = JSON.parse(historyRaw)
+
+      // 計算每個課程的最高進度和分數
+      const lessonProgressMap: Record<string, { progress: number, score: number }> = {}
+
+      history.forEach((entry) => {
+        const lessonId = entry.lessonId
+        const questionsCount = entry.questionsCount || 0
+        const answeredCount = entry.results?.length || 0
+        const progress = questionsCount > 0
+          ? Math.round((answeredCount / questionsCount) * 100)
+          : 0
+        const score = entry.totalScore || 0
+
+        // 同一課程取最高進度記錄
+        if (!lessonProgressMap[lessonId] || lessonProgressMap[lessonId].progress < progress) {
+          lessonProgressMap[lessonId] = { progress, score }
         }
-      } catch (error) {
-        console.error("Failed to fetch stats:", error)
+      })
+
+      // 1. Completed Lessons: 只計算進度 = 100% 的課程
+      const completedLessons = Object.values(lessonProgressMap).filter(
+        (data) => data.progress === 100
+      )
+      const completedCount = completedLessons.length
+
+      // 2. Average Score: 只計算已完成課程的平均分數
+      const avgScore = completedCount > 0
+        ? Math.round(
+            completedLessons.reduce((sum, data) => sum + data.score, 0) / completedCount
+          )
+        : 0
+
+      // 3. Level Index: 完成課程數 / 10
+      const levelIndex = parseFloat((completedCount / 10).toFixed(1))
+
+      // 4. Streak Days: 計算連續學習天數
+      const streak = calculateStreakDays(history)
+
+      console.log('📊 統計數據計算完成:', {
+        completedCount,
+        avgScore,
+        levelIndex,
+        streak
+      })
+
+      return {
+        lessons: completedCount,
+        avgScore,
+        levelIndex,
+        streak
+      }
+    } catch (error) {
+      console.error('❌ 計算統計數據失敗:', error)
+      return { lessons: 0, avgScore: 0, levelIndex: 0, streak: 0 }
+    }
+  }
+
+  // 計算連續學習天數
+  const calculateStreakDays = (history: LessonHistoryEntry[]): number => {
+    if (history.length === 0) return 0
+
+    // 提取所有完成日期（只取日期，忽略時間）
+    const completionDates = history
+      .map((entry) => {
+        const date = new Date(entry.completedAt)
+        return new Date(date.getFullYear(), date.getMonth(), date.getDate())
+      })
+      .sort((a, b) => b.getTime() - a.getTime()) // 最新到最舊
+
+    // 去重：同一天可能完成多個課程
+    const uniqueDates = Array.from(
+      new Set(completionDates.map(d => d.getTime()))
+    ).map(time => new Date(time))
+
+    if (uniqueDates.length === 0) return 0
+
+    // 檢查今天或昨天是否有學習記錄
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    const yesterday = new Date(today)
+    yesterday.setDate(yesterday.getDate() - 1)
+
+    const latestDate = uniqueDates[0]
+    const latestTime = latestDate.getTime()
+    const todayTime = today.getTime()
+    const yesterdayTime = yesterday.getTime()
+
+    // 如果最新記錄不是今天或昨天，streak 中斷
+    if (latestTime !== todayTime && latestTime !== yesterdayTime) {
+      return 0
+    }
+
+    // 從最新日期開始計算連續天數
+    let streakCount = 1
+    for (let i = 1; i < uniqueDates.length; i++) {
+      const currentDate = uniqueDates[i]
+      const previousDate = uniqueDates[i - 1]
+      const diffInDays = Math.round(
+        (previousDate.getTime() - currentDate.getTime()) / (1000 * 60 * 60 * 24)
+      )
+
+      // 相差正好 1 天，繼續 streak
+      if (diffInDays === 1) {
+        streakCount++
+      } else {
+        break // 否則中斷
       }
     }
 
-    fetchStats()
+    return streakCount
+  }
+
+  // 從 localStorage 計算統計數據（客戶端計算，不需後端 API）
+  useEffect(() => {
+    const calculatedStats = calculateStats()
+    setStats(calculatedStats)
   }, [])
 
   useEffect(() => {
@@ -284,6 +382,12 @@ export default function DashboardPage() {
     fetchLessons()
   }, [])
 
+  // 當 lessonProgress 更新時，重新計算統計數據
+  useEffect(() => {
+    const calculatedStats = calculateStats()
+    setStats(calculatedStats)
+  }, [lessonProgress])
+
   const handleLessonClick = (lessonId: string) => {
     router.push(`/lesson/${lessonId}`)
   }
@@ -310,49 +414,8 @@ export default function DashboardPage() {
   ]
 
   return (
-    <div className="flex min-h-screen w-full bg-gradient-to-b from-[#f7f9ff] to-[#edf1f9] text-slate-900">
-      <aside className="w-72 border-r border-white/70 bg-[#f6f8fe]/90 px-7 py-10 shadow-[0_15px_40px_rgba(148,163,184,0.25)] backdrop-blur">
-        <button className="self-start rounded-full border border-blue-100 bg-white px-4 py-1.5 text-sm font-semibold text-blue-600 shadow-sm">
-          Talk Learning
-        </button>
-
-        <div className="mt-7 space-y-4 text-[13px]">
-          <div>
-            <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Navigate</div>
-            <p className="mt-1 text-[11px] text-slate-400">
-              Lessons, flashcards, and detailed history reports.
-            </p>
-          </div>
-
-          <div className="space-y-3">
-            {NAV_ITEMS.map((item) => {
-              const isActive = pathname === item.href
-              return (
-                <button
-                  key={item.href}
-                  onClick={() => router.push(item.href)}
-                  className={`w-full rounded-3xl border px-4 py-3 text-left transition ${
-                    isActive
-                      ? "border-white bg-white text-slate-900 shadow-[0_18px_35px_rgba(15,23,42,0.12)]"
-                      : "border-transparent bg-white/30 text-slate-500 hover:bg-white/60"
-                  }`}
-                >
-                  <span className={`text-[13px] ${isActive ? "font-semibold" : "font-medium"}`}>
-                    {item.label}
-                  </span>
-                  <span className="text-[11px] uppercase tracking-wide text-slate-400">
-                    {item.description}
-                  </span>
-                </button>
-              )
-            })}
-          </div>
-        </div>
-      </aside>
-
-      <main className="flex flex-1 justify-center overflow-y-auto border-l border-white/70">
-        <div className="w-full max-w-[1050px] px-10 py-10">
-          <div className="space-y-8 rounded-[34px] border border-white/80 bg-white/90 px-10 py-10 shadow-[0_40px_80px_rgba(15,23,42,0.12)]">
+    <div className="w-full h-full flex flex-col text-slate-900">
+      <div className="flex-1 space-y-8 rounded-[34px] border border-white/80 bg-white/90 px-10 py-10 shadow-[0_40px_80px_rgba(15,23,42,0.12)]">
             <div className="flex flex-wrap items-start justify-between gap-6">
               <div className="space-y-2">
                 <p className="text-xs font-semibold uppercase tracking-[0.25em] text-slate-500">
@@ -507,7 +570,5 @@ export default function DashboardPage() {
             </section>
           </div>
         </div>
-      </main>
-    </div>
   )
 }

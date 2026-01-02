@@ -266,7 +266,7 @@ export default function ReportPage() {
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
       <div className="bg-white border-b shadow-sm">
-        <div className="max-w-5xl mx-auto px-6 py-4">
+        <div className="w-full px-6 py-4">
           <button
             onClick={() => router.push('/history')}
             className="flex items-center gap-2 text-gray-600 hover:text-gray-900 mb-2"
@@ -284,7 +284,7 @@ export default function ReportPage() {
       </div>
 
       {/* Main Content */}
-      <div className="max-w-5xl mx-auto px-6 py-8 space-y-6">
+      <div className="w-full px-6 py-8 space-y-6">
         {/* Overall Score Card */}
         <div className={`rounded-xl border-2 p-6 ${getScoreBgColor(analysis.overallScore)}`}>
           <div className="flex items-center justify-between">

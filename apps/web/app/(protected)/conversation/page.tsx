@@ -22,6 +22,23 @@ interface CompletedChapter {
   lessonCount: number
 }
 
+// 所有可用章節列表
+const ALL_CHAPTERS = ['C1', 'C2', 'C3', 'C4', 'C5', 'C6', 'C7', 'C8', 'C9', 'C10'] as const
+
+// 章節標題對照
+const CHAPTER_TITLES: Record<string, string> = {
+  'C1': 'Chapter 1: Basic Chinese',
+  'C2': 'Chapter 2: Intermediate Conversations',
+  'C3': 'Chapter 3: Advanced Topics',
+  'C4': 'Chapter 4: Daily Life',
+  'C5': 'Chapter 5: Social Situations',
+  'C6': 'Chapter 6: Business Chinese',
+  'C7': 'Chapter 7: Travel & Leisure',
+  'C8': 'Chapter 8: Cultural Topics',
+  'C9': 'Chapter 9: Professional Communication',
+  'C10': 'Chapter 10: Advanced Mastery'
+}
+
 export default function ConversationSetupPage() {
   const router = useRouter()
 
@@ -52,36 +69,39 @@ export default function ConversationSetupPage() {
       setCurrentInterviewer(savedInterviewer)
     }
 
+    // 建立完成度對照表
+    const completionMap = new Map<string, number>()
+
     const historyStr = localStorage.getItem('lessonHistory')
     if (historyStr) {
       try {
         const history: LessonHistoryEntry[] = JSON.parse(historyStr)
 
-        // Extract unique chapters from completed lessons
-        const chapterMap = new Map<string, { lessonCount: number }>()
+        // 章節 ID 驗證正規表達式：只接受 C + 數字格式
+        const VALID_CHAPTER_PATTERN = /^C\d{1,2}$/
+
         history.forEach(entry => {
-          const chapterId = entry.lessonId.split('-')[0] // Extract C1, C2, etc.
-          if (chapterId) {
-            const existing = chapterMap.get(chapterId)
-            if (existing) {
-              existing.lessonCount++
-            } else {
-              chapterMap.set(chapterId, { lessonCount: 1 })
-            }
+          const chapterId = entry.lessonId.split('-')[0]
+
+          // 只計算有效的章節 ID（過濾掉 L10, L3 等舊格式）
+          if (chapterId && VALID_CHAPTER_PATTERN.test(chapterId)) {
+            const existing = completionMap.get(chapterId)
+            completionMap.set(chapterId, (existing || 0) + 1)
           }
         })
-
-        const chapters = Array.from(chapterMap.entries()).map(([chapterId, data]) => ({
-          chapterId,
-          title: `Chapter ${chapterId.substring(1)}`,
-          lessonCount: data.lessonCount
-        }))
-
-        setCompletedChapters(chapters)
       } catch (error) {
         console.error('Failed to load lesson history:', error)
       }
     }
+
+    // 建立章節列表：顯示所有章節並合併完成度資料
+    const chapters = ALL_CHAPTERS.map(chapterId => ({
+      chapterId,
+      title: CHAPTER_TITLES[chapterId],
+      lessonCount: completionMap.get(chapterId) || 0
+    }))
+
+    setCompletedChapters(chapters)
   }, [])
 
   // Request microphone permission
@@ -187,7 +207,7 @@ export default function ConversationSetupPage() {
     <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white">
       {/* Header */}
       <div className="border-b bg-white shadow-sm">
-        <div className="mx-auto max-w-4xl px-6 py-4">
+        <div className="w-full px-6 py-4">
           <button
             onClick={() => router.push('/dashboard')}
             className="text-sm text-gray-600 hover:text-gray-900"
@@ -201,7 +221,7 @@ export default function ConversationSetupPage() {
         </div>
       </div>
 
-      <div className="mx-auto max-w-4xl px-6 py-8">
+      <div className="w-full px-6 py-8">
         <div className="space-y-6">
           {/* Step 1: Permissions */}
           <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
@@ -392,28 +412,29 @@ export default function ConversationSetupPage() {
                   <p className="mb-3 text-sm font-medium text-gray-700">
                     Select chapters to focus on:
                   </p>
-                  {completedChapters.length === 0 ? (
-                    <p className="text-sm text-gray-500">
-                      No completed chapters yet. Complete some lessons first to unlock chapter-based conversations.
-                    </p>
-                  ) : (
-                    <div className="grid grid-cols-3 gap-2 max-h-48 overflow-y-auto">
-                      {completedChapters.map(chapter => (
-                        <button
-                          key={chapter.chapterId}
-                          onClick={() => toggleChapter(chapter.chapterId)}
-                          className={`rounded-lg border px-3 py-2 text-center text-sm transition-all ${
-                            selectedChapters.includes(chapter.chapterId)
-                              ? 'border-blue-500 bg-blue-50 text-blue-700'
+                  <div className="grid grid-cols-3 gap-2 max-h-48 overflow-y-auto">
+                    {completedChapters.map(chapter => (
+                      <button
+                        key={chapter.chapterId}
+                        onClick={() => toggleChapter(chapter.chapterId)}
+                        className={`rounded-lg border px-3 py-2 text-center text-sm transition-all ${
+                          selectedChapters.includes(chapter.chapterId)
+                            ? 'border-blue-500 bg-blue-50 text-blue-700'
+                            : chapter.lessonCount === 0
+                              ? 'border-gray-200 bg-gray-50 text-gray-400 hover:border-gray-300'
                               : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300'
-                          }`}
-                        >
-                          <div className="font-bold text-lg">{chapter.chapterId}</div>
-                          <div className="text-xs opacity-75">{chapter.lessonCount} lessons</div>
-                        </button>
-                      ))}
-                    </div>
-                  )}
+                        }`}
+                      >
+                        <div className="font-bold text-lg">{chapter.chapterId}</div>
+                        <div className="text-xs opacity-75">
+                          {chapter.lessonCount > 0
+                            ? `${chapter.lessonCount} completed`
+                            : 'Not started'
+                          }
+                        </div>
+                      </button>
+                    ))}
+                  </div>
                 </div>
               )}
 

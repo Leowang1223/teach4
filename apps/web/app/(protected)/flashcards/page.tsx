@@ -226,7 +226,7 @@ export default function FlashcardsPage() {
 
   return (
     <div className="flex min-h-screen w-full items-center justify-center bg-gradient-to-br from-[#f4f7ff] via-white to-[#eef1fb] py-12 px-4">
-      <div className="w-full max-w-4xl rounded-[40px] border border-white/70 bg-white/90 p-10 shadow-[0_40px_80px_rgba(15,23,42,0.08)] backdrop-blur-xl">
+      <div className="w-full rounded-[40px] border border-white/70 bg-white/90 p-10 shadow-[0_40px_80px_rgba(15,23,42,0.08)] backdrop-blur-xl">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
             <p className="text-sm uppercase tracking-[0.25em] text-slate-400">Practice Deck</p>

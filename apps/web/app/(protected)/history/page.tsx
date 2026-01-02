@@ -174,7 +174,7 @@ export default function HistoryPage() {
 
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-purple-50 p-8">
-        <div className="max-w-5xl mx-auto bg-white rounded-2xl shadow-2xl p-8">
+        <div className="w-full bg-white rounded-2xl shadow-2xl p-8">
           <AppButton
             icon={ArrowLeft}
             onClick={() => setSelectedSession(null)}
@@ -302,7 +302,7 @@ export default function HistoryPage() {
   // 主列表頁面
   return (
     <div className='min-h-screen bg-gradient-to-br from-blue-50 to-purple-50 p-8'>
-      <div className='max-w-6xl mx-auto'>
+      <div className='w-full'>
         <div className="flex justify-between items-center mb-8">
           <h1 className='text-4xl font-bold text-gray-800'>📚 Learning History</h1>
           <div className="flex flex-wrap gap-4">

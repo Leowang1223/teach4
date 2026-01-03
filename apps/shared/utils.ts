@@ -43,8 +43,9 @@ export function formatApiResponse<T>(
 export function handleApiError(error: any): any {
   console.error('API Error:', error);
 
-  if (error instanceof ApiError) {
-    return formatApiResponse(false, null, error.message, error.code);
+  if (error instanceof Error && 'statusCode' in error) {
+    const apiError = error as any;
+    return formatApiResponse(false, null, apiError.message, apiError.code);
   }
 
   if (error.name === 'ValidationError') {
@@ -56,17 +57,4 @@ export function handleApiError(error: any): any {
   }
 
   return formatApiResponse(false, null, 'Internal server error', 'INTERNAL_ERROR');
-}
-
-// Custom API error class
-export class ApiError extends Error {
-  statusCode: number;
-  code?: string;
-
-  constructor(message: string, statusCode: number = 500, code?: string) {
-    super(message);
-    this.statusCode = statusCode;
-    this.code = code;
-    this.name = 'ApiError';
-  }
 }

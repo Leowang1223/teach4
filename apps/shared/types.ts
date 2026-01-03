@@ -1,6 +1,6 @@
-// 共享類型定義 - 統一整個專案的資料結構
+// Shared type definitions - Unified data structures for the entire project
 
-// API 響應統一格式
+// API response unified format
 export interface ApiResponse<T = any> {
   success: boolean;
   data?: T;
@@ -9,7 +9,7 @@ export interface ApiResponse<T = any> {
   timestamp: string;
 }
 
-// API 錯誤類
+// API error class
 export class ApiError extends Error {
   statusCode: number;
   code?: string;
@@ -22,7 +22,7 @@ export class ApiError extends Error {
   }
 }
 
-// 用戶相關類型
+// User related types
 export interface User {
   id: string;
   name: string;
@@ -31,7 +31,7 @@ export interface User {
   updatedAt: Date;
 }
 
-// 會話相關類型
+// Session related types
 export interface Session {
   id: string;
   userId: string;
@@ -45,24 +45,24 @@ export interface SessionMetadata {
   interviewType: string;
   totalQuestions: number;
   completedQuestions: number;
-  duration: number; // 總時長（秒）
+  duration: number; // Total duration in seconds
 }
 
-// 會話條目類型
+// Session entry type
 export interface SessionEntry {
   index: number;
   question: string;
   answer: string;
   askedAt: string;
   answeredAt: string;
-  thinkingTime: number; // 思考時間（秒）
-  answeringTime: number; // 回答時間（秒）
+  thinkingTime: number; // Thinking time in seconds
+  answeringTime: number; // Answering time in seconds
   lessonId?: string;
   stepId?: number;
   completed: boolean;
 }
 
-// Q&A 項目類型（用於分析）
+// Q&A item type (for analysis)
 export interface QAItem {
   index: number;
   question: string;
@@ -74,7 +74,7 @@ export interface QAItem {
   expectedAnswer?: string | string[];
 }
 
-// 分析結果類型
+// Analysis result type
 export interface AnalysisResult {
   sessionId: string;
   results: PerQuestionResult[];
@@ -141,7 +141,7 @@ export interface Recommendation {
   priority: 'high' | 'medium' | 'low';
 }
 
-// 報告類型
+// Report type
 export interface Report {
   id: string;
   sessionId: string;
@@ -160,7 +160,7 @@ export interface ReportMetadata {
   generatedBy: string; // 'ai' | 'manual'
 }
 
-// 面試題目類型
+// Interview question type
 export interface InterviewQuestion {
   id: string;
   type: string;
@@ -172,7 +172,7 @@ export interface InterviewQuestion {
   tags: string[];
 }
 
-// 課程資料類型
+// Lesson data type
 export interface Lesson {
   lessonId: string;
   title: string;
@@ -188,7 +188,7 @@ export interface LessonStep {
   tips?: string[];
 }
 
-// 插件配置類型
+// Plugin configuration type
 export interface PluginConfig {
   interviewTypes: InterviewTypeConfig[];
 }
